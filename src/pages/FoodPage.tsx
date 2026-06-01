@@ -216,22 +216,14 @@ export function FoodPage({ data, actions }: { data: FitnessData; actions: Action
         eyebrow="Registo diário"
         title="Alimentação"
         action={
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              aria-label="Calendário"
-              className={`rounded-xl p-2.5 transition-colors ${calendarOpen ? "bg-white/30 text-white" : "bg-white/18 text-white"}`}
-              onClick={() => setCalendarOpen((v) => !v)}
-            >
-              <CalendarDays size={20} />
-            </button>
-            <input
-              className="date-pill"
-              type="date"
-              value={date}
-              onChange={(e) => { setDate(e.target.value); setCalendarOpen(false); }}
-            />
-          </div>
+          <button
+            type="button"
+            className={`flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-semibold text-white transition-colors ${calendarOpen ? "bg-white/30" : "bg-white/18"}`}
+            onClick={() => setCalendarOpen((v) => !v)}
+          >
+            <CalendarDays size={17} />
+            {new Date(`${date}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
+          </button>
         }
       />
 
@@ -471,7 +463,11 @@ function AddFoodModal({ open, foods, onClose, onAdd }: { open: boolean; foods: F
             </button>
           ))}
           {filtered.length === 0 && (
-            <p className="rounded-2xl bg-slate-50 py-4 text-center text-sm text-slate-400">Nenhum alimento encontrado.</p>
+            <div className="flex min-h-[220px] flex-col items-center justify-start pt-10">
+              <p className="rounded-2xl bg-slate-50 px-5 py-4 text-center text-sm text-slate-400">
+                Nenhum alimento encontrado.
+              </p>
+            </div>
           )}
         </div>
       ) : (

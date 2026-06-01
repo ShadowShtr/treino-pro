@@ -24,7 +24,7 @@ import {
 import { Card, Empty, PageHeader, SectionTitle } from "../components/Ui";
 import { macrosForLog, monthlySummary } from "../lib/calculations";
 import { calculateTargets } from "../lib/fitnessFormulas";
-import { daysInMonth, formatDate, monthKey } from "../lib/date";
+import { daysInMonth, formatDate, monthKey, todayISO } from "../lib/date";
 import { exportMonthlyPdf } from "../lib/pdf";
 import type { FitnessData, MeasurementEntry } from "../types";
 
@@ -384,67 +384,126 @@ function SimpleLine({
 function Calendar({ data, month }: { data: FitnessData; month: string }) {
   const dates = daysInMonth(month);
   const blankCells = new Date(`${month}-01T12:00:00`).getDay();
+  const today = todayISO();
+  const targets = calculateTargets(data.profile!);
+
+  // Count activity days for the month summary
+  const activeDays = dates.filter((date) => {
+    const log = data.logs[date];
+    return (
+      (log && Object.values(log.meals).flat().length > 0) ||
+      data.completedWorkouts.some((e) => e.date === date) ||
+      data.cardioEntries.some((e) => e.date === date)
+    );
+  }).length;
+
+  const workoutDays = dates.filter((d) => data.completedWorkouts.some((e) => e.date === d)).length;
+  const creatineDays = dates.filter((d) => data.logs[d]?.creatine === true).length;
 
   return (
     <Card className="mb-4">
       <SectionTitle>Calendário mensal</SectionTitle>
-      <div className="mb-2 grid grid-cols-7 text-center text-[11px] font-medium text-slate-400">
-        {["D", "S", "T", "Q", "Q", "S", "S"].map((label, index) => (
-          <span key={`${label}${index}`}>{label}</span>
+
+      {/* Mini summary strip */}
+      <div className="mb-4 flex gap-2">
+        <div className="flex-1 rounded-2xl bg-primary/10 px-3 py-2 text-center">
+          <p className="text-lg font-bold text-primary">{activeDays}</p>
+          <p className="text-[10px] text-muted">dias ativos</p>
+        </div>
+        <div className="flex-1 rounded-2xl bg-success/10 px-3 py-2 text-center">
+          <p className="text-lg font-bold text-success">{workoutDays}</p>
+          <p className="text-[10px] text-muted">treinos</p>
+        </div>
+        <div className="flex-1 rounded-2xl bg-primary-dark/10 px-3 py-2 text-center">
+          <p className="text-lg font-bold text-primary-dark">{creatineDays}</p>
+          <p className="text-[10px] text-muted">creatina</p>
+        </div>
+      </div>
+
+      {/* Day headers */}
+      <div className="mb-1 grid grid-cols-7 text-center">
+        {["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"].map((d, i) => (
+          <span key={i} className="text-[10px] font-bold text-muted">{d}</span>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-y-3 text-center">
-        {Array.from({ length: blankCells }, (_, index) => (
-          <span key={`blank-${index}`} />
-        ))}
+
+      {/* Day cells */}
+      <div className="grid grid-cols-7 gap-0.5">
+        {Array.from({ length: blankCells }, (_, i) => <div key={`b${i}`} />)}
         {dates.map((date) => {
-          const hasMeals = Boolean(
-            data.logs[date] && Object.values(data.logs[date].meals).flat().length
-          );
-          const trained = data.completedWorkouts.some((entry) => entry.date === date);
-          const weighted = data.weights.some((entry) => entry.date === date);
-          const measured = data.measurements.some((entry) => entry.date === date);
-          const creatine = data.logs[date]?.creatine === true;
-          const cardio = data.cardioEntries.some((entry) => entry.date === date);
+          const log = data.logs[date];
+          const hasMeals = Boolean(log && Object.values(log.meals).flat().length > 0);
+          const trained = data.completedWorkouts.some((e) => e.date === date);
+          const creatine = log?.creatine === true;
+          const cardio = data.cardioEntries.some((e) => e.date === date);
+          const hasWeight = data.weights.some((e) => e.date === date);
+          const isToday = date === today;
+          const isFuture = date > today;
+
+          // Calorie fill percentage for mini bar
+          let calPct = 0;
+          if (hasMeals && targets.calories > 0) {
+            const { calories } = macrosForLog(log!);
+            calPct = Math.min(1, calories / targets.calories);
+          }
+
+          const dayNum = Number(date.slice(8));
+          const hasAny = hasMeals || trained || cardio;
+
           return (
-            <div key={date} className="text-xs">
-              <span className="block text-slate-700">{Number(date.slice(8))}</span>
-              <span className="mt-1 flex justify-center gap-[2px]">
-                {hasMeals && <i className="calendar-dot bg-primary" />}
-                {trained && <i className="calendar-dot bg-success" />}
-                {(weighted || measured) && <i className="calendar-dot bg-warning" />}
-                {creatine && <i className="calendar-dot bg-primary-dark" />}
-                {cardio && <i className="calendar-dot bg-danger" />}
+            <div
+              key={date}
+              className={`relative flex flex-col items-center rounded-xl py-1.5 transition-all ${
+                isToday
+                  ? "bg-primary/12 ring-1 ring-inset ring-primary"
+                  : hasAny
+                  ? "bg-slate-50"
+                  : ""
+              } ${isFuture ? "opacity-25" : ""}`}
+            >
+              <span className={`text-[11px] font-semibold leading-tight ${isToday ? "text-primary" : "text-ink"}`}>
+                {dayNum}
               </span>
+
+              {/* Calorie mini-bar */}
+              {hasMeals && (
+                <div className="mt-0.5 h-[3px] w-5 overflow-hidden rounded-full bg-slate-200">
+                  <div
+                    className={`h-full rounded-full ${calPct >= 0.9 ? "bg-success" : "bg-primary"}`}
+                    style={{ width: `${calPct * 100}%` }}
+                  />
+                </div>
+              )}
+
+              {/* Activity dots */}
+              <div className="mt-0.5 flex gap-[2px]">
+                {hasMeals && <span className="h-[5px] w-[5px] rounded-full bg-primary" />}
+                {trained && <span className="h-[5px] w-[5px] rounded-full bg-success" />}
+                {cardio && <span className="h-[5px] w-[5px] rounded-full bg-danger" />}
+                {creatine && <span className="h-[5px] w-[5px] rounded-full bg-primary-dark" />}
+                {hasWeight && <span className="h-[5px] w-[5px] rounded-full bg-warning" />}
+              </div>
             </div>
           );
         })}
       </div>
-      <div className="mt-5 grid grid-cols-2 gap-2 text-xs text-slate-500">
-        <Legend icon={UtensilsCrossed} color="bg-primary" label="Alimentação" />
-        <Legend icon={Dumbbell} color="bg-success" label="Treino" />
-        <Legend icon={Scale} color="bg-warning" label="Peso/medida" />
-        <Legend icon={Pill} color="bg-primary-dark" label="Creatina" />
-        <Legend icon={HeartPulse} color="bg-danger" label="Cardio" />
+
+      {/* Legend */}
+      <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-outline pt-3">
+        {[
+          { color: "bg-primary", Icon: UtensilsCrossed, label: "Alimentação" },
+          { color: "bg-success",  Icon: Dumbbell,       label: "Treino" },
+          { color: "bg-danger",   Icon: HeartPulse,     label: "Cardio" },
+          { color: "bg-primary-dark", Icon: Pill,       label: "Creatina" },
+          { color: "bg-warning",  Icon: Scale,          label: "Peso/medida" },
+        ].map(({ color, Icon, label }) => (
+          <div key={label} className="flex items-center gap-1.5 text-xs text-muted">
+            <span className={`inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full ${color}`} />
+            <Icon size={12} className="flex-shrink-0" />
+            {label}
+          </div>
+        ))}
       </div>
     </Card>
-  );
-}
-
-function Legend({
-  icon: Icon,
-  color,
-  label
-}: {
-  icon: typeof Dumbbell;
-  color: string;
-  label: string;
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <i className={`calendar-dot ${color}`} />
-      <Icon size={13} />
-      {label}
-    </div>
   );
 }
