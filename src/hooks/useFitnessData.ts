@@ -1,24 +1,21 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { emptyData } from "../data/seed";
 import { todayISO, weekdayForDate } from "../lib/date";
 import { loadData, persistData, secureWorkoutTemplate } from "../lib/storage";
 import {
-  getCurrentUser,
   getCloudAppDataWithMeta,
   getSyncStatus,
   hasMeaningfulCloudData,
   hasMeaningfulLocalData,
   saveCloudAppData,
-  signInWithEmail,
-  signOut as signOutFromCloud,
-  signUpWithEmail,
-  syncAppData
+  syncAppData,
+  legacySignOut
 } from "../lib/syncService";
 import type {
   AppTheme,
+  CardioEntry,
   DayLog,
   FitnessData,
-  CardioEntry,
   Food,
   MealItem,
   MeasurementEntry,
@@ -32,25 +29,20 @@ import type {
   WorkoutTemplate
 } from "../types";
 
+import { useAuth as useAuthClerk, useUser as useUserClerk } from "@clerk/clerk-react";
+
 type MealId = keyof DayLog["meals"];
 export type ResetScope = "alimentacao" | "treinos" | "evolucao" | "agua_creatina" | "tudo";
 export type AuthSyncResult = "cloud-applied" | "choice-needed" | "local-only";
 
 function blankLog(date: string): DayLog {
-  return {
-    date,
-    meals: { refeicao1: [], refeicao2: [], refeicao3: [] },
-    creatine: null,
-    waterMl: 0
-  };
+  return { date, meals: { refeicao1: [], refeicao2: [], refeicao3: [] }, creatine: null, waterMl: 0 };
 }
 
 function compactLogs(logs: Record<string, DayLog>): Record<string, DayLog> {
   return Object.fromEntries(
     Object.entries(logs).filter(([, log]) =>
-      Object.values(log.meals).some((meal) => meal.length > 0) ||
-      log.waterMl > 0 ||
-      log.creatine !== null
+      Object.values(log.meals).some((meal) => meal.length > 0) || log.waterMl > 0 || log.creatine !== null
     )
   );
 }
@@ -59,25 +51,22 @@ function hasImportantAction(data: FitnessData, date: string): boolean {
   const log = data.logs[date];
   return (
     (log ? Object.values(log.meals).some((meal) => meal.length > 0) : false) ||
-    (log?.waterMl ?? 0) > 0 ||
-    log?.creatine === true ||
-    data.weights.some((entry) => entry.date === date) ||
-    data.completedWorkouts.some((entry) => entry.date === date) ||
-    data.cardioEntries.some((entry) => entry.date === date)
+    (log?.waterMl ?? 0) > 0 || log?.creatine === true ||
+    data.weights.some((e) => e.date === date) ||
+    data.completedWorkouts.some((e) => e.date === date) ||
+    data.cardioEntries.some((e) => e.date === date)
   );
 }
 
 function calculateStreak(data: FitnessData): StreakStats {
   const dates = new Set([
     ...Object.keys(data.logs),
-    ...data.weights.map((entry) => entry.date),
-    ...data.completedWorkouts.map((entry) => entry.date),
-    ...data.cardioEntries.map((entry) => entry.date)
+    ...data.weights.map((e) => e.date),
+    ...data.completedWorkouts.map((e) => e.date),
+    ...data.cardioEntries.map((e) => e.date)
   ]);
-  const activeDates = [...dates].filter((date) => hasImportantAction(data, date)).sort();
-  let best = 0;
-  let run = 0;
-  let previous = "";
+  const activeDates = [...dates].filter((d) => hasImportantAction(data, d)).sort();
+  let best = 0, run = 0, previous = "";
   for (const date of activeDates) {
     const expected = previous ? new Date(`${previous}T12:00:00`) : null;
     expected?.setDate(expected.getDate() + 1);
@@ -103,11 +92,27 @@ function hasMinimumProfile(profile: Profile): boolean {
 }
 
 export function useFitnessData() {
+  const { isSignedIn, isLoaded, userId, getToken } = useAuthClerk();
+  const { user } = useUserClerk();
+
   const [data, setData] = useState<FitnessData>(() => loadData(emptyData()));
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(() => getSyncStatus());
+
   const syncTimer = useRef<number | null>(null);
   const readyForCloudSync = useRef(false);
   const restoringFromCloud = useRef(false);
+
+  // Derived auth info from Clerk
+  const isAuthenticated = Boolean(isSignedIn);
+  const userEmail = user?.primaryEmailAddress?.emailAddress ?? null;
+
+  // Stable token getter ref — avoids stale closures in effects
+  const getClerkToken = useCallback(
+    () => getToken({ template: "supabase" }),
+    [getToken]
+  );
+  const getClerkTokenRef = useRef(getClerkToken);
+  useEffect(() => { getClerkTokenRef.current = getClerkToken; }, [getClerkToken]);
 
   function sameData(left: FitnessData | null, right: FitnessData | null) {
     return JSON.stringify(left) === JSON.stringify(right);
@@ -117,28 +122,21 @@ export function useFitnessData() {
     restoringFromCloud.current = true;
     setData(remoteData);
     persistData(remoteData);
-    setSyncStatus((current) => ({
-      ...current,
-      authenticated: true,
-      state: "synced",
-      lastSyncedAt: updatedAt ?? current.lastSyncedAt ?? new Date().toISOString(),
+    setSyncStatus((cur) => ({
+      ...cur, authenticated: true, state: "synced",
+      lastSyncedAt: updatedAt ?? cur.lastSyncedAt ?? new Date().toISOString(),
       message: "Dados sincronizados com a nuvem."
     }));
-    window.setTimeout(() => {
-      restoringFromCloud.current = false;
-    }, 0);
+    window.setTimeout(() => { restoringFromCloud.current = false; }, 0);
   }
 
-  async function restoreAfterAuth(email?: string | null): Promise<AuthSyncResult> {
-    setSyncStatus((current) => ({
-      ...current,
-      authenticated: true,
-      userEmail: email ?? current.userEmail,
-      state: "syncing",
-      message: "Carregando dados da nuvem..."
+  async function restoreAfterAuth(token: string, uid: string, email?: string | null): Promise<AuthSyncResult> {
+    setSyncStatus((cur) => ({
+      ...cur, authenticated: true, userEmail: email ?? cur.userEmail,
+      state: "syncing", message: "Carregando dados da nuvem..."
     }));
     try {
-      const cloud = await getCloudAppDataWithMeta();
+      const cloud = await getCloudAppDataWithMeta(token, uid);
       const cloudHasData = hasMeaningfulCloudData(cloud.data);
       const localHasData = hasMeaningfulLocalData(data);
 
@@ -146,497 +144,314 @@ export function useFitnessData() {
         applyRemoteData(cloud.data!, cloud.updatedAt);
         return "cloud-applied";
       }
-
       if (cloudHasData && localHasData) {
-        setSyncStatus((current) => ({
-          ...current,
-          authenticated: true,
-          userEmail: email ?? current.userEmail,
-          state: "pending",
-          lastSyncedAt: cloud.updatedAt,
+        setSyncStatus((cur) => ({
+          ...cur, authenticated: true, userEmail: email ?? cur.userEmail,
+          state: "pending", lastSyncedAt: cloud.updatedAt,
           message: "Encontramos dados neste dispositivo e na nuvem. Escolha qual deseja usar."
         }));
         return "choice-needed";
       }
-
       if (!cloudHasData && localHasData) {
-        setSyncStatus((current) => ({
-          ...current,
-          authenticated: true,
-          userEmail: email ?? current.userEmail,
-          state: "pending",
-          message: "Encontramos dados neste dispositivo. Você pode enviar para a nuvem."
+        setSyncStatus((cur) => ({
+          ...cur, authenticated: true, userEmail: email ?? cur.userEmail, state: "pending",
+          message: "Dados encontrados neste dispositivo. Pode enviá-los para a nuvem."
         }));
         return "choice-needed";
       }
-
-      setSyncStatus((current) => ({
-        ...current,
-        authenticated: true,
-        userEmail: email ?? current.userEmail,
-        state: "synced",
-        message: "Conta conectada. Preencha o perfil para começar a sincronizar."
+      setSyncStatus((cur) => ({
+        ...cur, authenticated: true, userEmail: email ?? cur.userEmail,
+        state: "synced", message: "Conta conectada. Preencha o perfil para começar."
       }));
       return "local-only";
     } catch {
-      setSyncStatus((current) => ({
-        ...current,
-        authenticated: true,
-        userEmail: email ?? current.userEmail,
-        state: "error",
-        message: "Erro ao carregar dados da nuvem. Os dados locais continuam disponíveis."
+      setSyncStatus((cur) => ({
+        ...cur, authenticated: true, userEmail: email ?? cur.userEmail,
+        state: "error", message: "Erro ao carregar dados da nuvem. Dados locais disponíveis."
       }));
       return "local-only";
     }
   }
 
+  // React to Clerk auth state changes
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (isSignedIn && userId) {
+      getToken({ template: "supabase" }).then((token) => {
+        if (token) restoreAfterAuth(token, userId, userEmail);
+        else {
+          setSyncStatus((cur) => ({
+            ...cur, authenticated: true, userEmail,
+            state: "local", message: "Conectado. Sincronização aguardando token."
+          }));
+        }
+        readyForCloudSync.current = true;
+      });
+    } else if (!isSignedIn) {
+      readyForCloudSync.current = true;
+      setSyncStatus((cur) => ({
+        ...cur, authenticated: false, userEmail: null, state: "local",
+        message: "Dados guardados apenas neste dispositivo. Faça login para sincronizar."
+      }));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSignedIn, isLoaded, userId]);
+
+  // Streak recalculation
   useEffect(() => {
     const next = calculateStreak(data);
     if (data.streak.current !== next.current || data.streak.best !== next.best || data.streak.updatedAt !== next.updatedAt) {
-      setData((current) => ({ ...current, streak: next }));
+      setData((cur) => ({ ...cur, streak: next }));
     }
   }, [data]);
 
+  // Auto-sync on data change
   useEffect(() => {
     persistData(data);
     if (restoringFromCloud.current) return;
-    if (!readyForCloudSync.current || !syncStatus.authenticated) return;
+    if (!readyForCloudSync.current || !isAuthenticated || !userId) return;
     if (!hasMeaningfulLocalData(data)) return;
     if (syncTimer.current) window.clearTimeout(syncTimer.current);
-    setSyncStatus((current) => ({ ...current, state: "syncing", message: "Sincronizando..." }));
-    syncTimer.current = window.setTimeout(() => {
-      syncAppData(data).then(setSyncStatus);
-    }, 900);
-  }, [data, syncStatus.authenticated]);
-
-  useEffect(() => {
-    getCurrentUser().then(async (user) => {
-      if (user) {
-        await restoreAfterAuth(user.email);
-      } else {
-        setSyncStatus((current) => ({
-          ...current,
-          authenticated: false,
-          userEmail: null,
-          state: "local",
-          message: current.configured
-            ? "Dados guardados apenas neste dispositivo. Faça login para sincronizar com a nuvem."
-            : "Supabase não configurado. O app está funcionando apenas localmente."
-        }));
+    setSyncStatus((cur) => ({ ...cur, state: "syncing", message: "Sincronizando..." }));
+    syncTimer.current = window.setTimeout(async () => {
+      const token = await getClerkTokenRef.current();
+      if (token && userId) {
+        syncAppData(data, token, userId, userEmail).then(setSyncStatus);
       }
-      readyForCloudSync.current = true;
-    });
-  }, []);
+    }, 900);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, isAuthenticated, userId]);
 
-  const update = (recipe: (draft: FitnessData) => FitnessData) => setData((current) => recipe(current));
+  const update = (recipe: (draft: FitnessData) => FitnessData) => setData((cur) => recipe(cur));
 
   const actions = useMemo(
     () => ({
       replace(next: FitnessData) {
         setData(next);
-        if (syncStatus.authenticated) {
-          syncAppData(next).then(setSyncStatus);
+        if (isAuthenticated && userId) {
+          getClerkTokenRef.current().then((token) => {
+            if (token) syncAppData(next, token, userId!, userEmail).then(setSyncStatus);
+          });
         }
       },
-      clear() {
-        setData(emptyData());
-      },
-      setTheme(theme: AppTheme) {
-        update((current) => ({ ...current, theme }));
-      },
+      clear() { setData(emptyData()); },
+      setTheme(theme: AppTheme) { update((cur) => ({ ...cur, theme })); },
       resetRecords(scope: ResetScope) {
-        if (scope === "tudo") {
-          setData(emptyData());
-          return;
-        }
-        update((current) => {
+        if (scope === "tudo") { setData(emptyData()); return; }
+        update((cur) => {
           if (scope === "alimentacao") {
             const logs = Object.fromEntries(
-              Object.entries(current.logs).map(([date, log]) => [
-                date,
-                { ...log, meals: { refeicao1: [], refeicao2: [], refeicao3: [] } }
-              ])
+              Object.entries(cur.logs).map(([date, log]) => [date, { ...log, meals: { refeicao1: [], refeicao2: [], refeicao3: [] } }])
             );
-            return { ...current, logs: compactLogs(logs) };
+            return { ...cur, logs: compactLogs(logs) };
           }
           if (scope === "treinos") {
-            return {
-              ...current,
-              workouts: current.workouts.map((workout) => ({ ...workout, name: "", exercises: [] })),
-              completedWorkouts: []
-            };
+            return { ...cur, workouts: cur.workouts.map((w) => ({ ...w, name: "", exercises: [] })), completedWorkouts: [] };
           }
           if (scope === "evolucao") {
-            return { ...current, weights: [], measurements: [], cardioEntries: [] };
+            return { ...cur, weights: [], measurements: [], cardioEntries: [] };
           }
           const logs = Object.fromEntries(
-            Object.entries(current.logs).map(([date, log]) => [
-              date,
-              { ...log, waterMl: 0, creatine: null }
-            ])
+            Object.entries(cur.logs).map(([date, log]) => [date, { ...log, waterMl: 0, creatine: null }])
           );
-          return { ...current, logs: compactLogs(logs) };
+          return { ...cur, logs: compactLogs(logs) };
         });
       },
       createProfile(profile: Profile, measurements: Measurements) {
-        if (!hasMinimumProfile(profile)) {
-          window.alert("Preencha idade, altura e peso atual para calcular as metas iniciais.");
-          return false;
-        }
-        setData((current) => ({
-          ...current,
-          profile,
+        if (!hasMinimumProfile(profile)) { window.alert("Preencha idade, altura e peso atual."); return false; }
+        setData((cur) => ({
+          ...cur, profile,
           weights: [{ id: crypto.randomUUID(), date: todayISO(), weight: profile.pesoAtual }],
-          measurements: [
-            { id: crypto.randomUUID(), date: todayISO(), ...measurements }
-          ]
+          measurements: [{ id: crypto.randomUUID(), date: todayISO(), ...measurements }]
         }));
         return true;
       },
       saveProfile(profile: Profile) {
-        if (!hasMinimumProfile(profile)) {
-          window.alert("Idade, altura e peso atual precisam estar preenchidos para manter os cálculos.");
-          return false;
-        }
-        update((current) => ({ ...current, profile }));
+        if (!hasMinimumProfile(profile)) { window.alert("Idade, altura e peso atual são obrigatórios."); return false; }
+        update((cur) => ({ ...cur, profile }));
         return true;
       },
       saveWeight(entry: Omit<WeightEntry, "id">, id?: string) {
-        if (!Number.isFinite(entry.weight) || entry.weight < 30 || entry.weight > 300) {
-          window.alert("Peso inválido.");
-          return false;
-        }
-        update((current) => {
+        if (!Number.isFinite(entry.weight) || entry.weight < 30 || entry.weight > 300) { window.alert("Peso inválido."); return false; }
+        update((cur) => {
           const weights = id
-            ? current.weights.map((item) => (item.id === id ? { ...entry, id } : item))
-            : [...current.weights, { ...entry, id: crypto.randomUUID() }];
+            ? cur.weights.map((w) => (w.id === id ? { ...entry, id } : w))
+            : [...cur.weights, { ...entry, id: crypto.randomUUID() }];
           const latest = [...weights].sort((a, b) => b.date.localeCompare(a.date))[0];
-          return {
-            ...current,
-            weights,
-            profile: current.profile && latest
-              ? { ...current.profile, pesoAtual: latest.weight }
-              : current.profile
-          };
+          return { ...cur, weights, profile: cur.profile && latest ? { ...cur.profile, pesoAtual: latest.weight } : cur.profile };
         });
         return true;
       },
       deleteWeight(id: string) {
-        update((current) => {
-          const weights = current.weights.filter((entry) => entry.id !== id);
+        update((cur) => {
+          const weights = cur.weights.filter((w) => w.id !== id);
           const latest = [...weights].sort((a, b) => b.date.localeCompare(a.date))[0];
-          return {
-            ...current,
-            weights,
-            profile: current.profile && latest
-              ? { ...current.profile, pesoAtual: latest.weight }
-              : current.profile
-          };
+          return { ...cur, weights, profile: cur.profile && latest ? { ...cur.profile, pesoAtual: latest.weight } : cur.profile };
         });
       },
       saveMeasurement(entry: Omit<MeasurementEntry, "id">, id?: string) {
-        update((current) => ({
-          ...current,
+        update((cur) => ({
+          ...cur,
           measurements: id
-            ? current.measurements.map((item) => (item.id === id ? { ...entry, id } : item))
-            : [...current.measurements, { ...entry, id: crypto.randomUUID() }]
+            ? cur.measurements.map((m) => (m.id === id ? { ...entry, id } : m))
+            : [...cur.measurements, { ...entry, id: crypto.randomUUID() }]
         }));
       },
       deleteMeasurement(id: string) {
-        update((current) => ({
-          ...current,
-          measurements: current.measurements.filter((entry) => entry.id !== id)
-        }));
+        update((cur) => ({ ...cur, measurements: cur.measurements.filter((m) => m.id !== id) }));
       },
       addItem(date: string, meal: MealId, item: Omit<MealItem, "id">) {
-        update((current) => {
-          const log = current.logs[date] ?? blankLog(date);
-          return {
-            ...current,
-            logs: {
-              ...current.logs,
-              [date]: {
-                ...log,
-                meals: {
-                  ...log.meals,
-                  [meal]: [...log.meals[meal], { ...item, id: crypto.randomUUID() }]
-                }
-              }
-            }
-          };
+        update((cur) => {
+          const log = cur.logs[date] ?? blankLog(date);
+          return { ...cur, logs: { ...cur.logs, [date]: { ...log, meals: { ...log.meals, [meal]: [...log.meals[meal], { ...item, id: crypto.randomUUID() }] } } } };
         });
       },
       updateItem(date: string, meal: MealId, item: MealItem) {
-        update((current) => {
-          const log = current.logs[date] ?? blankLog(date);
-          return {
-            ...current,
-            logs: {
-              ...current.logs,
-              [date]: {
-                ...log,
-                meals: {
-                  ...log.meals,
-                  [meal]: log.meals[meal].map((entry) => (entry.id === item.id ? item : entry))
-                }
-              }
-            }
-          };
+        update((cur) => {
+          const log = cur.logs[date] ?? blankLog(date);
+          return { ...cur, logs: { ...cur.logs, [date]: { ...log, meals: { ...log.meals, [meal]: log.meals[meal].map((e) => (e.id === item.id ? item : e)) } } } };
         });
       },
       removeItem(date: string, meal: MealId, id: string) {
-        update((current) => {
-          const log = current.logs[date] ?? blankLog(date);
-          return {
-            ...current,
-            logs: {
-              ...current.logs,
-              [date]: {
-                ...log,
-                meals: { ...log.meals, [meal]: log.meals[meal].filter((item) => item.id !== id) }
-              }
-            }
-          };
+        update((cur) => {
+          const log = cur.logs[date] ?? blankLog(date);
+          return { ...cur, logs: { ...cur.logs, [date]: { ...log, meals: { ...log.meals, [meal]: log.meals[meal].filter((e) => e.id !== id) } } } };
         });
       },
       copyMeal(date: string, meal: MealId, sourceDate: string, sourceMeal: MealId) {
-        update((current) => {
-          const source = current.logs[sourceDate]?.meals[sourceMeal] ?? [];
-          const target = current.logs[date] ?? blankLog(date);
-          return {
-            ...current,
-            logs: {
-              ...current.logs,
-              [date]: {
-                ...target,
-                meals: {
-                  ...target.meals,
-                  [meal]: source.map((item) => ({ ...item, id: crypto.randomUUID() }))
-                }
-              }
-            }
-          };
+        update((cur) => {
+          const source = cur.logs[sourceDate]?.meals[sourceMeal] ?? [];
+          const target = cur.logs[date] ?? blankLog(date);
+          return { ...cur, logs: { ...cur.logs, [date]: { ...target, meals: { ...target.meals, [meal]: source.map((e) => ({ ...e, id: crypto.randomUUID() })) } } } };
         });
       },
       setCreatine(date: string, taken: boolean) {
-        update((current) => {
-          const log = current.logs[date] ?? blankLog(date);
-          return { ...current, logs: { ...current.logs, [date]: { ...log, creatine: taken } } };
-        });
+        update((cur) => { const log = cur.logs[date] ?? blankLog(date); return { ...cur, logs: { ...cur.logs, [date]: { ...log, creatine: taken } } }; });
         return true;
       },
       addWater(date: string, amount: number) {
-        if (![250, 500, 750].includes(amount) && (amount < -10000 || amount > 10000)) {
-          window.alert("Água inválida.");
-          return false;
-        }
-        update((current) => {
-          const log = current.logs[date] ?? blankLog(date);
-          return {
-            ...current,
-            logs: {
-              ...current.logs,
-              [date]: { ...log, waterMl: Math.max(0, log.waterMl + amount) }
-            }
-          };
-        });
+        if (![250, 500, 750].includes(amount) && (amount < -10000 || amount > 10000)) { window.alert("Água inválida."); return false; }
+        update((cur) => { const log = cur.logs[date] ?? blankLog(date); return { ...cur, logs: { ...cur.logs, [date]: { ...log, waterMl: Math.max(0, log.waterMl + amount) } } }; });
         return true;
       },
       saveFood(food: Food) {
-        update((current) => ({
-          ...current,
-          foods: current.foods.some((entry) => entry.id === food.id)
-            ? current.foods.map((entry) => (entry.id === food.id ? food : entry))
-            : [...current.foods, food]
-        }));
+        update((cur) => ({ ...cur, foods: cur.foods.some((f) => f.id === food.id) ? cur.foods.map((f) => (f.id === food.id ? food : f)) : [...cur.foods, food] }));
       },
       deleteFood(id: string) {
-        update((current) => ({
-          ...current,
-          foods: current.foods.filter((food) => food.id !== id || !food.custom)
-        }));
+        update((cur) => ({ ...cur, foods: cur.foods.filter((f) => f.id !== id || !f.custom) }));
       },
       saveWorkout(day: Weekday, plan: WorkoutPlan) {
-        update((current) => ({
-          ...current,
-          workouts: current.workouts.map((workout) => (workout.day === day ? plan : workout))
-        }));
+        update((cur) => ({ ...cur, workouts: cur.workouts.map((w) => (w.day === day ? plan : w)) }));
       },
       copyWorkout(targetDay: Weekday, sourceDay: Weekday) {
-        update((current) => {
-          const source = current.workouts.find((workout) => workout.day === sourceDay);
-          if (!source) return current;
-          return {
-            ...current,
-            workouts: current.workouts.map((workout) =>
-              workout.day === targetDay
-                ? {
-                    day: targetDay,
-                    name: source.name,
-                    exercises: source.exercises.map((exercise) => ({
-                      ...exercise,
-                      id: crypto.randomUUID()
-                    }))
-                  }
-                : workout
-            )
-          };
+        update((cur) => {
+          const source = cur.workouts.find((w) => w.day === sourceDay);
+          if (!source) return cur;
+          return { ...cur, workouts: cur.workouts.map((w) => w.day === targetDay ? { day: targetDay, name: source.name, exercises: source.exercises.map((e) => ({ ...e, id: crypto.randomUUID() })) } : w) };
         });
         return true;
       },
       saveWorkoutTemplate(template: WorkoutTemplate) {
-        const today = todayISO();
-        const safeTemplate = secureWorkoutTemplate({ ...template, updatedAt: today });
-        update((current) => ({
-          ...current,
-          workoutTemplates: current.workoutTemplates.some((entry) => entry.id === safeTemplate.id)
-            ? current.workoutTemplates.map((entry) => (entry.id === safeTemplate.id ? safeTemplate : entry))
-            : [...current.workoutTemplates, safeTemplate]
-        }));
+        const safe = secureWorkoutTemplate({ ...template, updatedAt: todayISO() });
+        update((cur) => ({ ...cur, workoutTemplates: cur.workoutTemplates.some((t) => t.id === safe.id) ? cur.workoutTemplates.map((t) => (t.id === safe.id ? safe : t)) : [...cur.workoutTemplates, safe] }));
         return true;
       },
       deleteWorkoutTemplate(id: string) {
-        update((current) => ({
-          ...current,
-          workoutTemplates: current.workoutTemplates.filter((entry) => entry.id !== id)
-        }));
+        update((cur) => ({ ...cur, workoutTemplates: cur.workoutTemplates.filter((t) => t.id !== id) }));
       },
       duplicateWorkoutTemplate(id: string) {
-        update((current) => {
-          const template = current.workoutTemplates.find((entry) => entry.id === id);
-          if (!template) return current;
+        update((cur) => {
+          const template = cur.workoutTemplates.find((t) => t.id === id);
+          if (!template) return cur;
           const today = todayISO();
-          return {
-            ...current,
-            workoutTemplates: [
-              ...current.workoutTemplates,
-              {
-                ...template,
-                id: crypto.randomUUID(),
-                name: `${template.name} cópia`,
-                createdAt: today,
-                updatedAt: today,
-                exercises: template.exercises.map((exercise) => ({ ...exercise, id: crypto.randomUUID() }))
-              }
-            ]
-          };
+          return { ...cur, workoutTemplates: [...cur.workoutTemplates, { ...template, id: crypto.randomUUID(), name: `${template.name} cópia`, createdAt: today, updatedAt: today, exercises: template.exercises.map((e) => ({ ...e, id: crypto.randomUUID() })) }] };
         });
       },
       copyWorkoutToTemplate(day: Weekday) {
         const today = todayISO();
-        update((current) => {
-          const workout = current.workouts.find((entry) => entry.day === day);
-          if (!workout || workout.exercises.length === 0) return current;
-          return {
-            ...current,
-            workoutTemplates: [
-              ...current.workoutTemplates,
-              {
-                id: crypto.randomUUID(),
-                name: workout.name || "Modelo de treino",
-                createdAt: today,
-                updatedAt: today,
-                exercises: workout.exercises.map((exercise) => ({ ...exercise, id: crypto.randomUUID() }))
-              }
-            ]
-          };
+        update((cur) => {
+          const workout = cur.workouts.find((w) => w.day === day);
+          if (!workout || workout.exercises.length === 0) return cur;
+          return { ...cur, workoutTemplates: [...cur.workoutTemplates, { id: crypto.randomUUID(), name: workout.name || "Modelo de treino", createdAt: today, updatedAt: today, exercises: workout.exercises.map((e) => ({ ...e, id: crypto.randomUUID() })) }] };
         });
         return true;
       },
       applyWorkoutTemplate(templateId: string, day: Weekday, mode: "replace" | "append") {
-        update((current) => {
-          const template = current.workoutTemplates.find((entry) => entry.id === templateId);
-          if (!template) return current;
+        update((cur) => {
+          const template = cur.workoutTemplates.find((t) => t.id === templateId);
+          if (!template) return cur;
           return {
-            ...current,
-            workouts: current.workouts.map((workout) => {
+            ...cur,
+            workouts: cur.workouts.map((workout) => {
               if (workout.day !== day) return workout;
-              const exercises = template.exercises.map((exercise) => ({ ...exercise, id: crypto.randomUUID() }));
-              return {
-                ...workout,
-                name: mode === "append" && workout.name ? workout.name : template.name,
-                exercises: mode === "append" ? [...workout.exercises, ...exercises] : exercises
-              };
+              const exercises = template.exercises.map((e) => ({ ...e, id: crypto.randomUUID() }));
+              return { ...workout, name: mode === "append" && workout.name ? workout.name : template.name, exercises: mode === "append" ? [...workout.exercises, ...exercises] : exercises };
             })
           };
         });
         return true;
       },
       completeWorkout(date: string) {
-        update((current) => {
+        update((cur) => {
           const day = weekdayForDate(date);
-          const workout = current.workouts.find((entry) => entry.day === day);
-          if (!workout || workout.exercises.length === 0) return current;
-          return {
-            ...current,
-            completedWorkouts: [
-              ...current.completedWorkouts.filter((entry) => entry.date !== date),
-              {
-                id: crypto.randomUUID(),
-                date,
-                day,
-                name: workout.name,
-                exercises: workout.exercises.map((exercise) => ({ ...exercise }))
-              }
-            ]
-          };
+          const workout = cur.workouts.find((w) => w.day === day);
+          if (!workout || workout.exercises.length === 0) return cur;
+          return { ...cur, completedWorkouts: [...cur.completedWorkouts.filter((e) => e.date !== date), { id: crypto.randomUUID(), date, day, name: workout.name, exercises: workout.exercises.map((e) => ({ ...e })) }] };
         });
       },
       undoWorkout(date: string) {
-        update((current) => ({
-          ...current,
-          completedWorkouts: current.completedWorkouts.filter((entry) => entry.date !== date)
-        }));
+        update((cur) => ({ ...cur, completedWorkouts: cur.completedWorkouts.filter((e) => e.date !== date) }));
       },
       saveCardio(entry: Omit<CardioEntry, "id">, id?: string) {
-        update((current) => ({
-          ...current,
-          cardioEntries: id
-            ? current.cardioEntries.map((item) => (item.id === id ? { ...entry, id } : item))
-            : [...current.cardioEntries, { ...entry, id: crypto.randomUUID() }]
-        }));
+        update((cur) => ({ ...cur, cardioEntries: id ? cur.cardioEntries.map((e) => (e.id === id ? { ...entry, id } : e)) : [...cur.cardioEntries, { ...entry, id: crypto.randomUUID() }] }));
         return true;
       },
       deleteCardio(id: string) {
-        update((current) => ({
-          ...current,
-          cardioEntries: current.cardioEntries.filter((entry) => entry.id !== id)
-        }));
+        update((cur) => ({ ...cur, cardioEntries: cur.cardioEntries.filter((e) => e.id !== id) }));
       },
-      async signUp(email: string, password: string) {
-        const user = await signUpWithEmail(email, password);
-        return restoreAfterAuth(user?.email ?? email);
-      },
-      async signIn(email: string, password: string) {
-        const user = await signInWithEmail(email, password);
-        return restoreAfterAuth(user?.email ?? email);
-      },
+
+      // ── Auth actions (Clerk-powered) ─────────────────────────────────────
+      // signUp and signIn are handled by Clerk's pre-built UI — no longer needed here.
+      // signOut: calls Clerk's signOut (via the UserButton or manually)
       async signOut() {
-        await signOutFromCloud();
-        setSyncStatus(getSyncStatus());
-      },
-      async loadFromCloud() {
-        const result = await getCloudAppDataWithMeta();
-        const cloud = result.data;
-        if (cloud) applyRemoteData(cloud, result.updatedAt);
-        setSyncStatus((current) => ({
-          ...current,
-          state: cloud ? "synced" : "local",
-          lastSyncedAt: cloud ? result.updatedAt ?? current.lastSyncedAt : current.lastSyncedAt,
-          message: cloud ? "Dados da nuvem carregados." : "Nenhum dado encontrado na nuvem."
+        await legacySignOut(); // clean up any old Supabase session
+        setSyncStatus((cur) => ({
+          ...cur, authenticated: false, userEmail: null, state: "local",
+          message: "Dados guardados apenas neste dispositivo."
         }));
-        return cloud;
+        // Clerk's actual signOut is called by <UserButton> or the component — not here
       },
+
+      async loadFromCloud() {
+        const token = await getClerkTokenRef.current();
+        if (!token || !userId) return null;
+        const result = await getCloudAppDataWithMeta(token, userId);
+        if (result.data) applyRemoteData(result.data, result.updatedAt);
+        setSyncStatus((cur) => ({
+          ...cur,
+          state: result.data ? "synced" : "local",
+          lastSyncedAt: result.data ? result.updatedAt ?? cur.lastSyncedAt : cur.lastSyncedAt,
+          message: result.data ? "Dados da nuvem carregados." : "Nenhum dado encontrado na nuvem."
+        }));
+        return result.data;
+      },
+
       async uploadToCloud() {
-        setSyncStatus((current) => ({ ...current, state: "syncing", message: "Sincronizando..." }));
-        setSyncStatus(await saveCloudAppData(data));
+        const token = await getClerkTokenRef.current();
+        if (!token || !userId) return;
+        setSyncStatus((cur) => ({ ...cur, state: "syncing", message: "Sincronizando..." }));
+        setSyncStatus(await saveCloudAppData(data, token, userId, userEmail, { allowEmptyOverwrite: true }));
       },
+
       async syncNow() {
-        setSyncStatus((current) => ({ ...current, state: "syncing", message: "Sincronizando..." }));
-        setSyncStatus(await syncAppData(data));
+        const token = await getClerkTokenRef.current();
+        if (!token || !userId) return;
+        setSyncStatus((cur) => ({ ...cur, state: "syncing", message: "Sincronizando..." }));
+        setSyncStatus(await syncAppData(data, token, userId, userEmail));
       }
     }),
-    [data, syncStatus.authenticated]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, isAuthenticated, userId, userEmail]
   );
 
   return { data, actions, syncStatus };
