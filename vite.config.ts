@@ -10,11 +10,11 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       manifest: {
-        name: "Travizani Fitness",
-        short_name: "Travizani",
-        description: "Alimentação, evolução corporal e treinos no seu dispositivo.",
+        name: "EVOXE",
+        short_name: "EVOXE",
+        description: "Treino, alimentação e evolução corporal no seu dispositivo.",
         lang: "pt-BR",
-        theme_color: "#FC4C02",
+        theme_color: "#DC2626",
         background_color: "#FAFAFA",
         display: "standalone",
         orientation: "portrait",

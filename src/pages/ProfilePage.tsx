@@ -386,7 +386,7 @@ export function ProfilePage({
         </div>
 
         <div className="mt-5 flex items-center justify-between border-t border-outline pt-4 text-xs text-muted">
-          <span>TREINO PRO</span>
+          <span>EVOXE</span>
           <span>Versão 1.0.0</span>
         </div>
 

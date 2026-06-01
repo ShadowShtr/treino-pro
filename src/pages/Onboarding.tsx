@@ -55,7 +55,6 @@ export function Onboarding({ onFinish, onDemo, data, actions, syncStatus }: Prop
   const [choiceOpen, setChoiceOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  // Show conflict modal when Clerk auth succeeds and there's a data conflict
   useEffect(() => {
     if (syncStatus.state === "pending" && syncStatus.authenticated) {
       setChoiceOpen(true);
@@ -80,7 +79,7 @@ export function Onboarding({ onFinish, onDemo, data, actions, syncStatus }: Prop
             <Activity size={28} />
           </div>
           <div>
-            <p className="mb-0.5 text-[11px] font-bold uppercase tracking-[0.18em] text-primary">TREINO PRO</p>
+            <p className="mb-0.5 text-[11px] font-bold uppercase tracking-[0.18em] text-primary">EVOXE</p>
             <h1 className="text-2xl font-bold tracking-tight text-ink">
               {step === 0 && "Bem-vindo"}
               {step === 1 && "Seu perfil"}

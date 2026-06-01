@@ -81,7 +81,7 @@ export function HomePage({ data, actions, setTab }: { data: FitnessData; actions
             <Activity size={24} />
           </div>
           <div className="leading-none">
-            <p className="text-lg font-extrabold tracking-[0.12em]">TREINO PRO</p>
+            <p className="text-lg font-extrabold tracking-[0.12em]">EVOXE</p>
           </div>
         </div>
         <div className="text-right">

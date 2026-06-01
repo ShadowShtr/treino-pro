@@ -3,7 +3,7 @@ import { migrateData } from "./storage";
 import { isSupabaseConfigured, supabase } from "./supabaseClient";
 import type { FitnessData, SyncStatus } from "../types";
 
-const SYNC_STATUS_KEY = "treino-pro-sync-status";
+const SYNC_STATUS_KEY = "evoxe-sync-status";
 const TABLE = "user_app_data";
 
 export interface CloudAppDataResult {
