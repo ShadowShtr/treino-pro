@@ -12,8 +12,11 @@ type MealId = keyof DayLog["meals"];
 
 const mealEntries: { id: MealId; label: string }[] = [
   { id: "refeicao1", label: "Café da manhã" },
-  { id: "refeicao2", label: "Almoço" },
-  { id: "refeicao3", label: "Jantar" }
+  { id: "refeicao2", label: "Lanche da manhã" },
+  { id: "refeicao3", label: "Almoço" },
+  { id: "refeicao4", label: "Lanche da tarde" },
+  { id: "refeicao5", label: "Jantar" },
+  { id: "refeicao6", label: "Ceia" }
 ];
 
 export function FoodPage({ data, actions }: { data: FitnessData; actions: Actions }) {
@@ -244,7 +247,7 @@ export function FoodPage({ data, actions }: { data: FitnessData; actions: Action
           className="btn-secondary mb-4 w-full justify-center py-3"
           onClick={() => setSlotsVisible((v) => Math.min(v + 1, mealEntries.length))}
         >
-          <Plus size={16} /> Adicionar {mealEntries[slotsVisible]?.label}
+          <Plus size={16} /> + {mealEntries[slotsVisible]?.label}
         </button>
       )}
 
@@ -415,7 +418,7 @@ function AddFoodModal({
     () =>
       foods
         .filter((food) => food.nome.toLowerCase().includes(search.toLowerCase()))
-        .slice(0, 20),
+        .slice(0, 60),
     [foods, search]
   );
 
@@ -448,37 +451,41 @@ function AddFoodModal({
   }
 
   return (
-    <Modal open={open} title="Adicionar alimento" onClose={handleClose}>
+    <Modal
+      open={open}
+      title="Adicionar alimento"
+      onClose={handleClose}
+      stickyTop={!selected ? (
+        <label className="search-input">
+          <Search size={17} />
+          <input
+            autoFocus
+            placeholder="Pesquisar alimento..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </label>
+      ) : undefined}
+    >
       {!selected ? (
-        <>
-          <label className="search-input mb-3">
-            <Search size={17} />
-            <input
-              autoFocus
-              placeholder="Pesquisar alimento..."
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </label>
-          <div className="space-y-2">
-            {filtered.map((food) => (
-              <button
-                type="button"
-                key={food.id}
-                className="selection-row"
-                onClick={() => choose(food)}
-              >
-                <span>{food.nome}</span>
-                <small>{food.calories} kcal / 100 g</small>
-              </button>
-            ))}
-            {filtered.length === 0 && (
-              <p className="rounded-2xl bg-slate-50 py-4 text-center text-sm text-slate-400">
-                Nenhum alimento encontrado.
-              </p>
-            )}
-          </div>
-        </>
+        <div className="space-y-2">
+          {filtered.map((food) => (
+            <button
+              type="button"
+              key={food.id}
+              className="selection-row"
+              onClick={() => choose(food)}
+            >
+              <span>{food.nome}</span>
+              <small>{food.calories} kcal / 100 g</small>
+            </button>
+          ))}
+          {filtered.length === 0 && (
+            <p className="rounded-2xl bg-slate-50 py-4 text-center text-sm text-slate-400">
+              Nenhum alimento encontrado.
+            </p>
+          )}
+        </div>
       ) : (
         <form
           className="space-y-4"
@@ -586,7 +593,7 @@ function CopyMealModal({
             </p>
             <div className="space-y-2">
               {mealEntries
-                .filter(({ id }) => log.meals[id].length)
+                .filter(({ id }) => (log.meals[id]?.length ?? 0) > 0)
                 .map(({ id, label }) => (
                   <button
                     className="selection-row"
@@ -595,7 +602,7 @@ function CopyMealModal({
                     onClick={() => onCopy(log.date, id)}
                   >
                     <span>{label}</span>
-                    <small>{log.meals[id].length} itens</small>
+                    <small>{log.meals[id]?.length ?? 0} itens</small>
                   </button>
                 ))}
             </div>

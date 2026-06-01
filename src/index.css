@@ -12,9 +12,9 @@
 }
 
 @theme {
-  --color-primary: #dc2626;
-  --color-primary-dark: #b91c1c;
-  --color-primary-light: #fef2f2;
+  --color-primary: #fc4c02;
+  --color-primary-dark: #d93f00;
+  --color-primary-light: #fff1eb;
   --color-app: #fafafa;
   --color-ink: #1f2933;
   --color-muted: #6b7280;
@@ -37,7 +37,7 @@ body {
 }
 
 :root[data-theme="dark"] {
-  --color-primary-light: rgba(220, 38, 38, .16);
+  --color-primary-light: rgba(252, 76, 2, .16);
   --color-app: #0f1115;
   --color-ink: #f9fafb;
   --color-muted: #9ca3af;

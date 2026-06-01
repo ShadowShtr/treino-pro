@@ -14,7 +14,7 @@ export default defineConfig({
         short_name: "EVOXE",
         description: "Treino, alimentação e evolução corporal no seu dispositivo.",
         lang: "pt-BR",
-        theme_color: "#DC2626",
+        theme_color: "#FC4C02",
         background_color: "#FAFAFA",
         display: "standalone",
         orientation: "portrait",

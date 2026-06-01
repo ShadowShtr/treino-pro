@@ -193,6 +193,12 @@ export function migrateData(raw: StoredData, fallback: FitnessData): FitnessData
           refeicao2: (((log.meals as FitnessData["logs"][string]["meals"] | undefined)?.refeicao2 ?? []) as Partial<MealItem>[])
             .map((item) => secureMealItem(item, foods)).filter((item): item is MealItem => Boolean(item)),
           refeicao3: (((log.meals as FitnessData["logs"][string]["meals"] | undefined)?.refeicao3 ?? []) as Partial<MealItem>[])
+            .map((item) => secureMealItem(item, foods)).filter((item): item is MealItem => Boolean(item)),
+          refeicao4: (((log.meals as FitnessData["logs"][string]["meals"] | undefined)?.refeicao4 ?? []) as Partial<MealItem>[])
+            .map((item) => secureMealItem(item, foods)).filter((item): item is MealItem => Boolean(item)),
+          refeicao5: (((log.meals as FitnessData["logs"][string]["meals"] | undefined)?.refeicao5 ?? []) as Partial<MealItem>[])
+            .map((item) => secureMealItem(item, foods)).filter((item): item is MealItem => Boolean(item)),
+          refeicao6: (((log.meals as FitnessData["logs"][string]["meals"] | undefined)?.refeicao6 ?? []) as Partial<MealItem>[])
             .map((item) => secureMealItem(item, foods)).filter((item): item is MealItem => Boolean(item))
         },
         creatine: typeof log.creatine === "boolean" ? log.creatine : null,

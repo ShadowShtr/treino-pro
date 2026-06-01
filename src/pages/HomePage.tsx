@@ -77,8 +77,10 @@ export function HomePage({ data, actions, setTab }: { data: FitnessData; actions
       {/* Header */}
       <header className="brand-header mb-5 flex items-center justify-between px-4 py-4">
         <div className="flex items-center gap-3">
-          <div className="rounded-xl bg-white/17 p-2">
-            <Activity size={24} />
+          <div className="rounded-xl bg-white/20 px-2.5 py-1.5">
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="white" aria-hidden="true">
+              <path d="M3,3 L21,3 L21,7.5 L8,7.5 L8,9.5 L16,9.5 L16,13.5 L8,13.5 L8,16.5 L21,16.5 L21,21 L3,21 Z"/>
+            </svg>
           </div>
           <div className="leading-none">
             <p className="text-lg font-extrabold tracking-[0.12em]">EVOXE</p>

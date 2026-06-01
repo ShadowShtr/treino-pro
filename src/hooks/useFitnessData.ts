@@ -38,7 +38,7 @@ export type ResetScope = "alimentacao" | "treinos" | "evolucao" | "agua_creatina
 export type AuthSyncResult = "cloud-applied" | "choice-needed" | "local-only";
 
 function blankLog(date: string): DayLog {
-  return { date, meals: { refeicao1: [], refeicao2: [], refeicao3: [] }, creatine: null, waterMl: 0 };
+  return { date, meals: { refeicao1: [], refeicao2: [], refeicao3: [], refeicao4: [], refeicao5: [], refeicao6: [] }, creatine: null, waterMl: 0 };
 }
 
 function compactLogs(logs: Record<string, DayLog>): Record<string, DayLog> {
@@ -186,7 +186,7 @@ export function useFitnessData() {
         update((cur) => {
           if (scope === "alimentacao") {
             const logs = Object.fromEntries(
-              Object.entries(cur.logs).map(([date, log]) => [date, { ...log, meals: { refeicao1: [], refeicao2: [], refeicao3: [] } }])
+              Object.entries(cur.logs).map(([date, log]) => [date, { ...log, meals: { refeicao1: [], refeicao2: [], refeicao3: [], refeicao4: [], refeicao5: [], refeicao6: [] } }])
             );
             return { ...cur, logs: compactLogs(logs) };
           }
@@ -248,19 +248,19 @@ export function useFitnessData() {
       addItem(date: string, meal: MealId, item: Omit<MealItem, "id">) {
         update((cur) => {
           const log = cur.logs[date] ?? blankLog(date);
-          return { ...cur, logs: { ...cur.logs, [date]: { ...log, meals: { ...log.meals, [meal]: [...log.meals[meal], { ...item, id: crypto.randomUUID() }] } } } };
+          return { ...cur, logs: { ...cur.logs, [date]: { ...log, meals: { ...log.meals, [meal]: [...(log.meals[meal] ?? []), { ...item, id: crypto.randomUUID() }] } } } };
         });
       },
       updateItem(date: string, meal: MealId, item: MealItem) {
         update((cur) => {
           const log = cur.logs[date] ?? blankLog(date);
-          return { ...cur, logs: { ...cur.logs, [date]: { ...log, meals: { ...log.meals, [meal]: log.meals[meal].map((e) => (e.id === item.id ? item : e)) } } } };
+          return { ...cur, logs: { ...cur.logs, [date]: { ...log, meals: { ...log.meals, [meal]: (log.meals[meal] ?? []).map((e) => (e.id === item.id ? item : e)) } } } };
         });
       },
       removeItem(date: string, meal: MealId, id: string) {
         update((cur) => {
           const log = cur.logs[date] ?? blankLog(date);
-          return { ...cur, logs: { ...cur.logs, [date]: { ...log, meals: { ...log.meals, [meal]: log.meals[meal].filter((e) => e.id !== id) } } } };
+          return { ...cur, logs: { ...cur.logs, [date]: { ...log, meals: { ...log.meals, [meal]: (log.meals[meal] ?? []).filter((e) => e.id !== id) } } } };
         });
       },
       copyMeal(date: string, meal: MealId, sourceDate: string, sourceMeal: MealId) {

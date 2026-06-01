@@ -84,6 +84,9 @@ export interface DayMeals {
   refeicao1: MealItem[];
   refeicao2: MealItem[];
   refeicao3: MealItem[];
+  refeicao4?: MealItem[];
+  refeicao5?: MealItem[];
+  refeicao6?: MealItem[];
 }
 
 export interface DayLog {

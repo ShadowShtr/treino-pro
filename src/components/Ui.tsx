@@ -61,24 +61,29 @@ export function Modal({
   title,
   open,
   onClose,
-  children
+  children,
+  stickyTop
 }: {
   title: string;
   open: boolean;
   onClose: () => void;
   children: ReactNode;
+  stickyTop?: ReactNode;
 }) {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-slate-950/35 p-3 sm:items-center sm:justify-center">
-      <div className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-[28px] bg-white p-5 shadow-xl">
-        <div className="mb-4 flex items-center justify-between">
+      <div className="flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-[28px] bg-white shadow-xl">
+        <div className="flex flex-shrink-0 items-center justify-between border-b border-outline px-5 py-4">
           <h2 className="text-lg font-semibold">{title}</h2>
           <button type="button" className="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-600" onClick={onClose}>
             Fechar
           </button>
         </div>
-        {children}
+        {stickyTop && (
+          <div className="flex-shrink-0 border-b border-outline px-5 py-3">{stickyTop}</div>
+        )}
+        <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
       </div>
     </div>
   );
