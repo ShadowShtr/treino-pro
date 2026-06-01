@@ -1,15 +1,19 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { emptyData } from "../data/seed";
 import { todayISO, weekdayForDate } from "../lib/date";
 import { loadData, persistData, secureWorkoutTemplate } from "../lib/storage";
 import {
+  getCurrentUser,
   getCloudAppDataWithMeta,
   getSyncStatus,
   hasMeaningfulCloudData,
   hasMeaningfulLocalData,
   saveCloudAppData,
-  syncAppData,
-  legacySignOut
+  signInWithEmail,
+  signInWithGoogle,
+  signUpWithEmail,
+  signOut as signOutFromCloud,
+  syncAppData
 } from "../lib/syncService";
 import type {
   AppTheme,
@@ -28,8 +32,6 @@ import type {
   WorkoutPlan,
   WorkoutTemplate
 } from "../types";
-
-import { useAuth as useAuthClerk, useUser as useUserClerk } from "@clerk/clerk-react";
 
 type MealId = keyof DayLog["meals"];
 export type ResetScope = "alimentacao" | "treinos" | "evolucao" | "agua_creatina" | "tudo";
@@ -92,110 +94,62 @@ function hasMinimumProfile(profile: Profile): boolean {
 }
 
 export function useFitnessData() {
-  const { isSignedIn, isLoaded, userId, getToken } = useAuthClerk();
-  const { user } = useUserClerk();
-
   const [data, setData] = useState<FitnessData>(() => loadData(emptyData()));
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(() => getSyncStatus());
-
   const syncTimer = useRef<number | null>(null);
   const readyForCloudSync = useRef(false);
   const restoringFromCloud = useRef(false);
 
-  // Derived auth info from Clerk
-  const isAuthenticated = Boolean(isSignedIn);
-  const userEmail = user?.primaryEmailAddress?.emailAddress ?? null;
-
-  // Stable token getter ref — avoids stale closures in effects
-  const getClerkToken = useCallback(
-    () => getToken({ template: "supabase" }),
-    [getToken]
-  );
-  const getClerkTokenRef = useRef(getClerkToken);
-  useEffect(() => { getClerkTokenRef.current = getClerkToken; }, [getClerkToken]);
-
-  function sameData(left: FitnessData | null, right: FitnessData | null) {
-    return JSON.stringify(left) === JSON.stringify(right);
+  function sameData(a: FitnessData | null, b: FitnessData | null) {
+    return JSON.stringify(a) === JSON.stringify(b);
   }
 
   function applyRemoteData(remoteData: FitnessData, updatedAt?: string | null) {
     restoringFromCloud.current = true;
     setData(remoteData);
     persistData(remoteData);
-    setSyncStatus((cur) => ({
-      ...cur, authenticated: true, state: "synced",
-      lastSyncedAt: updatedAt ?? cur.lastSyncedAt ?? new Date().toISOString(),
-      message: "Dados sincronizados com a nuvem."
-    }));
+    setSyncStatus((cur) => ({ ...cur, authenticated: true, state: "synced", lastSyncedAt: updatedAt ?? cur.lastSyncedAt ?? new Date().toISOString(), message: "Dados sincronizados com a nuvem." }));
     window.setTimeout(() => { restoringFromCloud.current = false; }, 0);
   }
 
-  async function restoreAfterAuth(token: string, uid: string, email?: string | null): Promise<AuthSyncResult> {
-    setSyncStatus((cur) => ({
-      ...cur, authenticated: true, userEmail: email ?? cur.userEmail,
-      state: "syncing", message: "Carregando dados da nuvem..."
-    }));
+  async function restoreAfterAuth(email?: string | null): Promise<AuthSyncResult> {
+    setSyncStatus((cur) => ({ ...cur, authenticated: true, userEmail: email ?? cur.userEmail, state: "syncing", message: "Carregando dados da nuvem..." }));
     try {
-      const cloud = await getCloudAppDataWithMeta(token, uid);
+      const cloud = await getCloudAppDataWithMeta();
       const cloudHasData = hasMeaningfulCloudData(cloud.data);
       const localHasData = hasMeaningfulLocalData(data);
-
       if (cloudHasData && (!localHasData || sameData(cloud.data, data))) {
         applyRemoteData(cloud.data!, cloud.updatedAt);
         return "cloud-applied";
       }
       if (cloudHasData && localHasData) {
-        setSyncStatus((cur) => ({
-          ...cur, authenticated: true, userEmail: email ?? cur.userEmail,
-          state: "pending", lastSyncedAt: cloud.updatedAt,
-          message: "Encontramos dados neste dispositivo e na nuvem. Escolha qual deseja usar."
-        }));
+        setSyncStatus((cur) => ({ ...cur, authenticated: true, userEmail: email ?? cur.userEmail, state: "pending", lastSyncedAt: cloud.updatedAt, message: "Encontramos dados neste dispositivo e na nuvem. Escolha qual deseja usar." }));
         return "choice-needed";
       }
       if (!cloudHasData && localHasData) {
-        setSyncStatus((cur) => ({
-          ...cur, authenticated: true, userEmail: email ?? cur.userEmail, state: "pending",
-          message: "Dados encontrados neste dispositivo. Pode enviá-los para a nuvem."
-        }));
+        setSyncStatus((cur) => ({ ...cur, authenticated: true, userEmail: email ?? cur.userEmail, state: "pending", message: "Dados encontrados neste dispositivo. Pode enviá-los para a nuvem." }));
         return "choice-needed";
       }
-      setSyncStatus((cur) => ({
-        ...cur, authenticated: true, userEmail: email ?? cur.userEmail,
-        state: "synced", message: "Conta conectada. Preencha o perfil para começar."
-      }));
+      setSyncStatus((cur) => ({ ...cur, authenticated: true, userEmail: email ?? cur.userEmail, state: "synced", message: "Conta conectada." }));
       return "local-only";
     } catch {
-      setSyncStatus((cur) => ({
-        ...cur, authenticated: true, userEmail: email ?? cur.userEmail,
-        state: "error", message: "Erro ao carregar dados da nuvem. Dados locais disponíveis."
-      }));
+      setSyncStatus((cur) => ({ ...cur, authenticated: true, userEmail: email ?? cur.userEmail, state: "error", message: "Erro ao carregar dados da nuvem." }));
       return "local-only";
     }
   }
 
-  // React to Clerk auth state changes
+  // Check Supabase session on startup
   useEffect(() => {
-    if (!isLoaded) return;
-    if (isSignedIn && userId) {
-      getToken({ template: "supabase" }).then((token) => {
-        if (token) restoreAfterAuth(token, userId, userEmail);
-        else {
-          setSyncStatus((cur) => ({
-            ...cur, authenticated: true, userEmail,
-            state: "local", message: "Conectado. Sincronização aguardando token."
-          }));
-        }
-        readyForCloudSync.current = true;
-      });
-    } else if (!isSignedIn) {
+    getCurrentUser().then(async (user) => {
+      if (user) {
+        await restoreAfterAuth(user.email);
+      } else {
+        setSyncStatus((cur) => ({ ...cur, authenticated: false, userEmail: null, state: "local", message: cur.configured ? "Dados guardados apenas neste dispositivo. Faça login para sincronizar." : "Sincronização não configurada. App funcionando localmente." }));
+      }
       readyForCloudSync.current = true;
-      setSyncStatus((cur) => ({
-        ...cur, authenticated: false, userEmail: null, state: "local",
-        message: "Dados guardados apenas neste dispositivo. Faça login para sincronizar."
-      }));
-    }
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSignedIn, isLoaded, userId]);
+  }, []);
 
   // Streak recalculation
   useEffect(() => {
@@ -209,18 +163,13 @@ export function useFitnessData() {
   useEffect(() => {
     persistData(data);
     if (restoringFromCloud.current) return;
-    if (!readyForCloudSync.current || !isAuthenticated || !userId) return;
+    if (!readyForCloudSync.current || !syncStatus.authenticated) return;
     if (!hasMeaningfulLocalData(data)) return;
     if (syncTimer.current) window.clearTimeout(syncTimer.current);
     setSyncStatus((cur) => ({ ...cur, state: "syncing", message: "Sincronizando..." }));
-    syncTimer.current = window.setTimeout(async () => {
-      const token = await getClerkTokenRef.current();
-      if (token && userId) {
-        syncAppData(data, token, userId, userEmail).then(setSyncStatus);
-      }
-    }, 900);
+    syncTimer.current = window.setTimeout(() => { syncAppData(data).then(setSyncStatus); }, 900);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, isAuthenticated, userId]);
+  }, [data, syncStatus.authenticated]);
 
   const update = (recipe: (draft: FitnessData) => FitnessData) => setData((cur) => recipe(cur));
 
@@ -228,11 +177,7 @@ export function useFitnessData() {
     () => ({
       replace(next: FitnessData) {
         setData(next);
-        if (isAuthenticated && userId) {
-          getClerkTokenRef.current().then((token) => {
-            if (token) syncAppData(next, token, userId!, userEmail).then(setSyncStatus);
-          });
-        }
+        if (syncStatus.authenticated) syncAppData(next).then(setSyncStatus);
       },
       clear() { setData(emptyData()); },
       setTheme(theme: AppTheme) { update((cur) => ({ ...cur, theme })); },
@@ -410,48 +355,40 @@ export function useFitnessData() {
         update((cur) => ({ ...cur, cardioEntries: cur.cardioEntries.filter((e) => e.id !== id) }));
       },
 
-      // ── Auth actions (Clerk-powered) ─────────────────────────────────────
-      // signUp and signIn are handled by Clerk's pre-built UI — no longer needed here.
-      // signOut: calls Clerk's signOut (via the UserButton or manually)
-      async signOut() {
-        await legacySignOut(); // clean up any old Supabase session
-        setSyncStatus((cur) => ({
-          ...cur, authenticated: false, userEmail: null, state: "local",
-          message: "Dados guardados apenas neste dispositivo."
-        }));
-        // Clerk's actual signOut is called by <UserButton> or the component — not here
+      // ── Auth actions (Supabase) ───────────────────────────────────────────
+      async signInWithGoogle() {
+        await signInWithGoogle();
+        // Redirect handled by Supabase OAuth — page reloads after auth
       },
-
+      async signUp(email: string, password: string) {
+        const user = await signUpWithEmail(email, password);
+        return restoreAfterAuth(user?.email ?? email);
+      },
+      async signIn(email: string, password: string) {
+        const user = await signInWithEmail(email, password);
+        return restoreAfterAuth(user?.email ?? email);
+      },
+      async signOut() {
+        await signOutFromCloud();
+        setSyncStatus(getSyncStatus());
+      },
       async loadFromCloud() {
-        const token = await getClerkTokenRef.current();
-        if (!token || !userId) return null;
-        const result = await getCloudAppDataWithMeta(token, userId);
+        const result = await getCloudAppDataWithMeta();
         if (result.data) applyRemoteData(result.data, result.updatedAt);
-        setSyncStatus((cur) => ({
-          ...cur,
-          state: result.data ? "synced" : "local",
-          lastSyncedAt: result.data ? result.updatedAt ?? cur.lastSyncedAt : cur.lastSyncedAt,
-          message: result.data ? "Dados da nuvem carregados." : "Nenhum dado encontrado na nuvem."
-        }));
+        setSyncStatus((cur) => ({ ...cur, state: result.data ? "synced" : "local", lastSyncedAt: result.data ? result.updatedAt ?? cur.lastSyncedAt : cur.lastSyncedAt, message: result.data ? "Dados da nuvem carregados." : "Nenhum dado encontrado na nuvem." }));
         return result.data;
       },
-
       async uploadToCloud() {
-        const token = await getClerkTokenRef.current();
-        if (!token || !userId) return;
         setSyncStatus((cur) => ({ ...cur, state: "syncing", message: "Sincronizando..." }));
-        setSyncStatus(await saveCloudAppData(data, token, userId, userEmail, { allowEmptyOverwrite: true }));
+        setSyncStatus(await saveCloudAppData(data, { allowEmptyOverwrite: true }));
       },
-
       async syncNow() {
-        const token = await getClerkTokenRef.current();
-        if (!token || !userId) return;
         setSyncStatus((cur) => ({ ...cur, state: "syncing", message: "Sincronizando..." }));
-        setSyncStatus(await syncAppData(data, token, userId, userEmail));
+        setSyncStatus(await syncAppData(data));
       }
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data, isAuthenticated, userId, userEmail]
+    [data, syncStatus.authenticated]
   );
 
   return { data, actions, syncStatus };
