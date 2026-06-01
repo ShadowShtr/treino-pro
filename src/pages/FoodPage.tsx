@@ -23,7 +23,14 @@ export function FoodPage({ data, actions }: { data: FitnessData; actions: Action
   const [copyMeal, setCopyMeal] = useState<MealId | null>(null);
   const [customOpen, setCustomOpen] = useState(false);
   const [editingFood, setEditingFood] = useState<Food | undefined>();
+  const [slotsVisible, setSlotsVisible] = useState(1);
   const log = data.logs[date];
+
+  // Auto-expand slots when switching to a date that already has data in slots 2 or 3
+  useEffect(() => {
+    const filled = mealEntries.filter(({ id }) => (log?.meals[id]?.length ?? 0) > 0).length;
+    setSlotsVisible((prev) => Math.max(prev, Math.max(1, filled)));
+  }, [date]); // eslint-disable-line react-hooks/exhaustive-deps
   const macros = macrosForLog(log);
   const targets = calculateTargets(data.profile!);
   const trained = data.completedWorkouts.some((entry) => entry.date === date);
@@ -178,7 +185,7 @@ export function FoodPage({ data, actions }: { data: FitnessData; actions: Action
 
       {/* Meal cards */}
       <div className="mb-4 space-y-3">
-        {mealEntries.map(({ id, label }) => {
+        {mealEntries.slice(0, slotsVisible).map(({ id, label }) => {
           const items = log?.meals[id] ?? [];
           const total = items.reduce((sum, item) => sum + macrosForItem(item).calories, 0);
           return (
@@ -229,6 +236,17 @@ export function FoodPage({ data, actions }: { data: FitnessData; actions: Action
           );
         })}
       </div>
+
+      {/* Add meal slot button */}
+      {slotsVisible < mealEntries.length && (
+        <button
+          type="button"
+          className="btn-secondary mb-4 w-full justify-center py-3"
+          onClick={() => setSlotsVisible((v) => Math.min(v + 1, mealEntries.length))}
+        >
+          <Plus size={16} /> Adicionar {mealEntries[slotsVisible]?.label}
+        </button>
+      )}
 
       {/* Custom foods card */}
       <Card className="mb-4">

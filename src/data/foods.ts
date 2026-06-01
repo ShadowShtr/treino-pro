@@ -108,5 +108,32 @@ export const baseFoods: Food[] = [
   f("presunto", "Presunto cozido", 128, 14.4, 1.5, 7),
   f("quinoa", "Quinoa cozida", 120, 4.4, 21.3, 1.9),
   f("soja", "Soja cozida", 173, 16.6, 9.9, 9),
-  f("tofu", "Tofu", 76, 8, 1.9, 4.8)
+  f("tofu", "Tofu", 76, 8, 1.9, 4.8),
+
+  // ── Bebidas ──
+  // Medida em ml: unitName="ml", gramsPerUnit=1 (1 ml ≈ 1 g para bebidas aquosas)
+  // Dados Coca-Cola como referência para refrigerante tipo cola (TACO/USDA)
+  f("refrigerante", "Refrigerante", 42, 0, 10.6, 0, "ml", 1),
+  f("refrigerante-lata", "Refrigerante — lata 350 ml", 42, 0, 10.6, 0, "lata", 350),
+  f("refrigerante-garrafa", "Refrigerante — garrafa 600 ml", 42, 0, 10.6, 0, "garrafa", 600),
+  f("refrigerante-garrafa2l", "Refrigerante — garrafa 2 L", 42, 0, 10.6, 0, "garrafa 2 L", 2000),
+  f("refrigerante-zero", "Refrigerante zero/diet", 0.4, 0, 0, 0, "ml", 1),
+  f("refrigerante-zero-lata", "Refrigerante zero — lata 350 ml", 0.4, 0, 0, 0, "lata", 350),
+  f("suco-caixinha", "Suco de caixinha", 53, 0.2, 13, 0.1, "ml", 1),
+  f("suco-caixinha-200", "Suco de caixinha — 200 ml", 53, 0.2, 13, 0.1, "caixinha", 200),
+  f("isotônico", "Isotônico (ex: Gatorade)", 26, 0, 6.3, 0, "ml", 1),
+  f("isotônico-500", "Isotônico — garrafa 500 ml", 26, 0, 6.3, 0, "garrafa", 500),
+  f("agua", "Água", 0, 0, 0, 0, "ml", 1),
+  f("agua-com-gas", "Água com gás", 0, 0, 0, 0, "ml", 1),
+  f("cha-verde", "Chá verde sem açúcar", 1, 0, 0.2, 0, "ml", 1),
+  f("cerveja", "Cerveja long neck (355 ml)", 43, 0.5, 3.5, 0, "long neck", 355),
+  f("cerveja-lata", "Cerveja — lata 350 ml", 43, 0.5, 3.5, 0, "lata", 350),
+  f("vinho-tinto", "Vinho tinto", 85, 0.1, 2.6, 0, "taça (150 ml)", 150),
+  f("leite-integral-ml", "Leite integral", 61, 3.2, 4.8, 3.3, "ml", 1),
+  f("leite-copo", "Leite integral — copo 200 ml", 61, 3.2, 4.8, 3.3, "copo", 200),
+  f("leite-desnatado-ml", "Leite desnatado", 35, 3.4, 5, 0.1, "ml", 1),
+  f("achocolatado", "Achocolatado", 67, 2, 13.3, 1, "ml", 1),
+  f("achocolatado-caixinha", "Achocolatado — caixinha 200 ml", 67, 2, 13.3, 1, "caixinha", 200),
+  f("shake-whey", "Shake de whey (com água)", 120, 24, 3, 2, "dose", 35),
+  f("cafe-com-leite", "Café com leite (sem açúcar)", 30, 1.5, 2.5, 1.5, "xícara (150 ml)", 150)
 ];

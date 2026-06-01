@@ -54,6 +54,14 @@ button, input, select {
   font: inherit;
 }
 
+/* iOS/Android: font-size >= 16px prevents browser auto-zoom on input focus.
+   User pinch-zoom is still fully allowed via the viewport meta tag. */
+input:not([type="file"]),
+select,
+textarea {
+  font-size: max(16px, 1em);
+}
+
 button {
   cursor: pointer;
 }
