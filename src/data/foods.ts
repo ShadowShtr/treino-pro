@@ -111,21 +111,35 @@ export const baseFoods: Food[] = [
   f("tofu", "Tofu", 76, 8, 1.9, 4.8),
 
   // ── Bebidas ──
-  // Medida em ml: unitName="ml", gramsPerUnit=1 (1 ml ≈ 1 g para bebidas aquosas)
-  // Dados Coca-Cola como referência para refrigerante tipo cola (TACO/USDA)
-  f("refrigerante", "Refrigerante", 42, 0, 10.6, 0, "ml", 1),
-  f("refrigerante-lata", "Refrigerante — lata 350 ml", 42, 0, 10.6, 0, "lata", 350),
-  f("refrigerante-garrafa", "Refrigerante — garrafa 600 ml", 42, 0, 10.6, 0, "garrafa", 600),
-  f("refrigerante-garrafa2l", "Refrigerante — garrafa 2 L", 42, 0, 10.6, 0, "garrafa 2 L", 2000),
+  f("refrigerante", "Refrigerante cola", 42, 0, 10.6, 0, "ml", 1),
+  f("refrigerante-lata", "Refrigerante cola — lata 350 ml", 42, 0, 10.6, 0, "lata", 350),
+  f("refrigerante-garrafa", "Refrigerante cola — garrafa 600 ml", 42, 0, 10.6, 0, "garrafa", 600),
+  f("refrigerante-garrafa2l", "Refrigerante cola — garrafa 2 L", 42, 0, 10.6, 0, "garrafa 2 L", 2000),
+  f("coca-cola-lata", "Coca-Cola — lata 350 ml", 42, 0, 10.6, 0, "lata", 350),
+  f("coca-cola-600", "Coca-Cola — garrafa 600 ml", 42, 0, 10.6, 0, "garrafa", 600),
+  f("coca-cola-2l", "Coca-Cola — garrafa 2 L", 42, 0, 10.6, 0, "garrafa 2 L", 2000),
+  f("coca-zero-lata", "Coca-Cola Zero — lata 350 ml", 0.4, 0, 0.1, 0, "lata", 350),
+  f("coca-zero-600", "Coca-Cola Zero — garrafa 600 ml", 0.4, 0, 0.1, 0, "garrafa", 600),
+  f("pepsi-lata", "Pepsi — lata 350 ml", 43, 0, 11, 0, "lata", 350),
+  f("pepsi-zero-lata", "Pepsi Black (zero) — lata 350 ml", 0.4, 0, 0, 0, "lata", 350),
+  f("guarana-lata", "Guaraná Antarctica — lata 350 ml", 40, 0, 9.8, 0, "lata", 350),
+  f("guarana-zero-lata", "Guaraná Antarctica Zero — lata 350 ml", 0.2, 0, 0, 0, "lata", 350),
+  f("guarana-600", "Guaraná Antarctica — garrafa 600 ml", 40, 0, 9.8, 0, "garrafa", 600),
+  f("sprite-lata", "Sprite — lata 350 ml", 38, 0, 9.5, 0, "lata", 350),
+  f("fanta-laranja-lata", "Fanta Laranja — lata 350 ml", 44, 0, 11, 0, "lata", 350),
   f("refrigerante-zero", "Refrigerante zero/diet", 0.4, 0, 0, 0, "ml", 1),
   f("refrigerante-zero-lata", "Refrigerante zero — lata 350 ml", 0.4, 0, 0, 0, "lata", 350),
   f("suco-caixinha", "Suco de caixinha", 53, 0.2, 13, 0.1, "ml", 1),
   f("suco-caixinha-200", "Suco de caixinha — 200 ml", 53, 0.2, 13, 0.1, "caixinha", 200),
   f("isotônico", "Isotônico (ex: Gatorade)", 26, 0, 6.3, 0, "ml", 1),
   f("isotônico-500", "Isotônico — garrafa 500 ml", 26, 0, 6.3, 0, "garrafa", 500),
+  f("gatorade-lata", "Gatorade — garrafa 500 ml", 26, 0, 6.3, 0, "garrafa", 500),
   f("agua", "Água", 0, 0, 0, 0, "ml", 1),
   f("agua-com-gas", "Água com gás", 0, 0, 0, 0, "ml", 1),
   f("cha-verde", "Chá verde sem açúcar", 1, 0, 0.2, 0, "ml", 1),
+  f("cha-mate", "Chá mate gelado", 5, 0, 1.2, 0, "ml", 1),
+  f("energetico", "Energético (ex: Red Bull 250 ml)", 45, 0, 11, 0, "lata", 250),
+  f("energetico-monster", "Energético Monster — lata 473 ml", 46, 0, 11.5, 0, "lata", 473),
   f("cerveja", "Cerveja long neck (355 ml)", 43, 0.5, 3.5, 0, "long neck", 355),
   f("cerveja-lata", "Cerveja — lata 350 ml", 43, 0.5, 3.5, 0, "lata", 350),
   f("vinho-tinto", "Vinho tinto", 85, 0.1, 2.6, 0, "taça (150 ml)", 150),
@@ -134,8 +148,10 @@ export const baseFoods: Food[] = [
   f("leite-desnatado-ml", "Leite desnatado", 35, 3.4, 5, 0.1, "ml", 1),
   f("achocolatado", "Achocolatado", 67, 2, 13.3, 1, "ml", 1),
   f("achocolatado-caixinha", "Achocolatado — caixinha 200 ml", 67, 2, 13.3, 1, "caixinha", 200),
+  f("nescau-copo", "Nescau com leite — copo 200 ml", 110, 4, 19, 2, "copo", 200),
   f("shake-whey", "Shake de whey (com água)", 120, 24, 3, 2, "dose", 35),
   f("cafe-com-leite", "Café com leite (sem açúcar)", 30, 1.5, 2.5, 1.5, "xícara (150 ml)", 150),
+  f("cafe-expresso", "Café expresso", 5, 0.3, 0.8, 0.1, "xícara", 30),
 
   // ── Carnes e proteínas extras ──
   f("camarao-cozido", "Camarão cozido", 99, 21, 0.9, 1.1),
@@ -269,5 +285,35 @@ export const baseFoods: Food[] = [
   f("ketchup", "Ketchup", 97, 1.6, 22, 0.3, "colher de sopa", 15),
   f("molho-tomate", "Molho de tomate caseiro", 40, 1.3, 8.3, 0.4),
   f("molho-soja", "Molho shoyu (soja)", 60, 5.8, 7.5, 0.1, "colher de sopa", 15),
-  f("mostarda", "Mostarda amarela", 66, 4.4, 6.3, 3.3, "colher de sopa", 10)
+  f("mostarda", "Mostarda amarela", 66, 4.4, 6.3, 3.3, "colher de sopa", 10),
+  f("molho-ranch", "Molho ranch", 490, 1, 6, 51, "colher de sopa", 15),
+  f("azeite-limao", "Vinagrete de azeite", 130, 0.1, 1, 14, "colher de sopa", 15),
+
+  // ── Fast food e lanches ──
+  f("big-mac", "Big Mac (McDonald's)", 257, 12.5, 25.6, 11.9, "unidade", 215),
+  f("mcchicken", "McChicken (McDonald's)", 234, 11.3, 26.1, 9.8, "unidade", 162),
+  f("batata-frita-media", "Batata frita média (fast food)", 310, 3.8, 40, 15, "porção média", 117),
+  f("batata-frita-grande", "Batata frita grande (fast food)", 490, 6, 63.5, 23.7, "porção grande", 185),
+  f("nuggets-6", "Nuggets de frango 6 unid.", 296, 15, 17, 18, "porção 6 un.", 105),
+  f("x-burguer", "X-Burguer / cheeseburger", 305, 16, 32, 12, "unidade", 130),
+  f("pizza-queijo-fatia", "Pizza de queijo — fatia", 266, 11, 30, 10, "fatia", 107),
+  f("pizza-calabresa-fatia", "Pizza de calabresa — fatia", 290, 12, 30, 13, "fatia", 107),
+  f("hot-dog", "Hot-dog simples", 280, 11, 30, 13, "unidade", 120),
+  f("coxinha", "Coxinha de frango", 230, 9, 24, 11, "unidade", 80),
+  f("esfiha", "Esfiha de carne", 210, 8.5, 25, 8.5, "unidade", 75),
+  f("pastel-queijo", "Pastel de queijo", 310, 11, 28, 17, "unidade", 100),
+  f("pastel-carne", "Pastel de carne", 285, 12, 28, 14, "unidade", 100),
+  f("brigadeiro", "Brigadeiro", 130, 2, 18, 6, "unidade", 25),
+  f("bolo-chocolate-fatia", "Bolo de chocolate — fatia", 350, 5, 50, 15, "fatia", 80),
+  f("sorvete-creme", "Sorvete de creme", 207, 3.5, 23.6, 11, "bola", 60),
+  f("acai-tigela-300", "Açaí com granola — tigela 300g", 290, 4, 50, 9, "tigela 300g", 300),
+
+  // ── Cereais matinais ──
+  f("sucrilhos", "Sucrilhos / cereal de milho açucarado", 382, 6, 89, 0.5, "xícara", 30),
+  f("mucilon", "Mucilon milho", 387, 8, 77, 5, "colher de sopa", 20),
+  f("neston", "Neston", 387, 10, 72, 7, "colher de sopa", 20),
+
+  // ── Pratos prontos / congelados ──
+  f("lasanha-congelada", "Lasanha bolonhesa congelada", 148, 7.5, 16, 5.8, "porção 300g", 300),
+  f("arroz-feijao-frango", "Prato feito arroz + feijão + frango (restaurante)", 420, 32, 45, 8, "prato", 400)
 ];

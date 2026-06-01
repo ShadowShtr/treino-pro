@@ -62,13 +62,15 @@ export function Modal({
   open,
   onClose,
   children,
-  stickyTop
+  stickyTop,
+  onContentScroll
 }: {
   title: string;
   open: boolean;
   onClose: () => void;
   children: ReactNode;
   stickyTop?: ReactNode;
+  onContentScroll?: () => void;
 }) {
   if (!open) return null;
   return (
@@ -83,7 +85,7 @@ export function Modal({
         {stickyTop && (
           <div className="flex-shrink-0 border-b border-outline px-5 py-3">{stickyTop}</div>
         )}
-        <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
+        <div className="flex-1 overflow-y-auto px-5 py-4" onScroll={onContentScroll}>{children}</div>
       </div>
     </div>
   );
