@@ -66,7 +66,16 @@ export function TrainingPage({ data, actions }: { data: FitnessData; actions: Ac
   const [inlineSearch, setInlineSearch] = useState("");
   const [editor, setEditor] = useState<WorkoutExercise | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [performedSets, setPerformedSets] = useState<Record<string, number>>({});
+  const [performedSets, setPerformedSets] = useState<Record<string, number>>(() => {
+    try {
+      const raw = localStorage.getItem("treino-session");
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      if (parsed.date === todayISO()) return parsed.sets as Record<string, number>;
+      localStorage.removeItem("treino-session");
+    } catch { /* ignore */ }
+    return {};
+  });
   const [copySource, setCopySource] = useState<Weekday>("segunda");
   const [showCopy, setShowCopy] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
@@ -95,6 +104,14 @@ export function TrainingPage({ data, actions }: { data: FitnessData; actions: Ac
     }
     return groups;
   }, [plan.exercises]);
+
+  useEffect(() => {
+    if (Object.keys(performedSets).length === 0) {
+      localStorage.removeItem("treino-session");
+    } else {
+      localStorage.setItem("treino-session", JSON.stringify({ date: todayISO(), sets: performedSets }));
+    }
+  }, [performedSets]);
 
   useEffect(() => {
     if (copySource === selectedDay) {
@@ -360,7 +377,10 @@ export function TrainingPage({ data, actions }: { data: FitnessData; actions: Ac
             type="button"
             disabled={completionPlan.exercises.length === 0}
             className="btn-primary flex w-full items-center justify-center gap-2 py-3 disabled:opacity-40"
-            onClick={() => actions.completeWorkout(completionDate)}
+            onClick={() => {
+              actions.completeWorkout(completionDate);
+              setPerformedSets({});
+            }}
           >
             <CheckCircle2 size={18} /> Marcar como concluído
           </button>
@@ -464,7 +484,7 @@ export function TrainingPage({ data, actions }: { data: FitnessData; actions: Ac
           performedSets={performedSets}
           onSetChange={(id, count) => setPerformedSets((cur) => ({ ...cur, [id]: count }))}
           onClose={() => setSessionActive(false)}
-          onComplete={() => { actions.completeWorkout(completionDate); setSessionActive(false); }}
+          onComplete={() => { actions.completeWorkout(completionDate); setSessionActive(false); setPerformedSets({}); }}
           onOpenRest={openRest}
         />
       )}
