@@ -1,11 +1,21 @@
 import { useMemo, useState } from "react";
-import { Download, Dumbbell, HeartPulse, Pill, Scale, UtensilsCrossed } from "lucide-react";
+import {
+  Download,
+  Dumbbell,
+  HeartPulse,
+  Pill,
+  Scale,
+  TrendingDown,
+  TrendingUp,
+  UtensilsCrossed
+} from "lucide-react";
 import {
   Bar,
   BarChart,
   CartesianGrid,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -33,49 +43,181 @@ export function ProgressPage({ data }: { data: FitnessData }) {
   const [measurement, setMeasurement] = useState<keyof MeasurementEntry>("cintura");
   const targets = calculateTargets(data.profile!);
   const report = monthlySummary(data, month, targets);
-  const mealSeries = Object.values(data.logs)
-    .filter((log) => log.date.startsWith(month))
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .map((log) => {
-      const values = macrosForLog(log);
-      return { label: log.date.slice(8), calorias: Math.round(values.calories), proteina: Math.round(values.protein), agua: log.waterMl };
-    });
-  const weightSeries = [...data.weights]
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .map((entry) => ({ label: formatDate(entry.date), peso: entry.weight }));
-  const measureSeries = [...data.measurements]
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .map((entry) => ({ label: formatDate(entry.date), valor: Number(entry[measurement]) }));
+
+  const mealSeries = useMemo(
+    () =>
+      Object.values(data.logs)
+        .filter((log) => log.date.startsWith(month))
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .map((log) => {
+          const values = macrosForLog(log);
+          return {
+            label: log.date.slice(8),
+            calorias: Math.round(values.calories),
+            proteina: Math.round(values.protein),
+            agua: log.waterMl
+          };
+        }),
+    [data.logs, month]
+  );
+
+  const weightSeries = useMemo(
+    () =>
+      [...data.weights]
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .map((entry) => ({ label: formatDate(entry.date), peso: entry.weight })),
+    [data.weights]
+  );
+
+  const measureSeries = useMemo(
+    () =>
+      [...data.measurements]
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .map((entry) => ({ label: formatDate(entry.date), valor: Number(entry[measurement]) })),
+    [data.measurements, measurement]
+  );
+
   const workoutSeries = useMemo(() => {
-    const weeks = [0, 1, 2, 3, 4].map((week) => ({ label: `S${week + 1}`, treinos: 0 }));
-    data.completedWorkouts.filter((entry) => entry.date.startsWith(month)).forEach((entry) => {
-      const week = Math.min(4, Math.floor((Number(entry.date.slice(8)) - 1) / 7));
-      weeks[week].treinos += 1;
-    });
+    const weeks = [0, 1, 2, 3, 4].map((w) => ({ label: `S${w + 1}`, treinos: 0 }));
+    data.completedWorkouts
+      .filter((entry) => entry.date.startsWith(month))
+      .forEach((entry) => {
+        const w = Math.min(4, Math.floor((Number(entry.date.slice(8)) - 1) / 7));
+        weeks[w].treinos += 1;
+      });
     return weeks;
   }, [data.completedWorkouts, month]);
+
+  const currentWeight = report.finalWeight;
+  const weightDiff = report.weightDifference;
 
   return (
     <>
       <PageHeader
         eyebrow="Histórico"
         title="Evolução"
-        action={<input className="date-pill" type="month" value={month} onChange={(event) => setMonth(event.target.value)} />}
+        action={
+          <input
+            className="date-pill"
+            type="month"
+            value={month}
+            onChange={(e) => setMonth(e.target.value)}
+          />
+        }
       />
-      <div className="mb-4 grid grid-cols-2 gap-3">
-        <Summary label="Média calorias" value={`${report.avgCalories} kcal`} />
-        <Summary label="Média proteína" value={`${report.avgProtein} g`} />
-        <Summary label="Média água" value={`${report.avgWater} ml`} />
-        <Summary label="Treinos" value={`${report.completedWorkouts}`} />
-        <Summary label="Creatina tomada" value={`${report.creatineDays} dias`} />
-        <Summary label="Dias na meta" value={`${report.successfulDays}`} />
+
+      {/* Monthly summary tiles — 3x2 */}
+      <div className="mb-4 grid grid-cols-3 gap-3">
+        <SummaryTile label="Calorias médias" value={`${report.avgCalories}`} unit="kcal" />
+        <SummaryTile label="Proteína média" value={`${report.avgProtein}`} unit="g" />
+        <SummaryTile label="Água média" value={`${report.avgWater}`} unit="ml" />
+        <SummaryTile label="Treinos" value={`${report.completedWorkouts}`} unit="treinos" />
+        <SummaryTile label="Creatina" value={`${report.creatineDays}`} unit="dias" />
+        <SummaryTile label="Dias na meta" value={`${report.successfulDays}`} unit="dias" />
       </div>
 
+      {/* Weight trend */}
       <Card className="mb-4">
-        <SectionTitle>Peso semanal</SectionTitle>
-        {weightSeries.length ? <SimpleLine data={weightSeries} keyName="peso" color="#FC4C02" suffix=" kg" /> : <Empty>Sem peso registado.</Empty>}
+        <SectionTitle
+          aside={
+            currentWeight !== undefined ? (
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-semibold text-ink">{currentWeight} kg</span>
+                {weightDiff !== null && (
+                  <span
+                    className={`flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                      weightDiff > 0
+                        ? "bg-red-100 text-red-600"
+                        : weightDiff < 0
+                          ? "bg-green-100 text-green-700"
+                          : "bg-slate-100 text-slate-500"
+                    }`}
+                  >
+                    {weightDiff > 0 ? (
+                      <TrendingUp size={11} />
+                    ) : weightDiff < 0 ? (
+                      <TrendingDown size={11} />
+                    ) : null}
+                    {weightDiff > 0 ? "+" : ""}
+                    {weightDiff} kg
+                  </span>
+                )}
+              </div>
+            ) : undefined
+          }
+        >
+          Peso
+        </SectionTitle>
+        {weightSeries.length ? (
+          <SimpleLine data={weightSeries} keyName="peso" color="#FC4C02" suffix=" kg" />
+        ) : (
+          <Empty>Registe o peso semanalmente no perfil.</Empty>
+        )}
       </Card>
 
+      {/* Calories + Protein chart */}
+      <Card className="mb-4">
+        <SectionTitle>Calorias e Proteínas</SectionTitle>
+        {mealSeries.length ? (
+          <>
+            <ResponsiveContainer width="100%" height={185}>
+              <LineChart data={mealSeries}>
+                <CartesianGrid vertical={false} stroke="#eef2f7" />
+                <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
+                <YAxis hide />
+                <Tooltip />
+                {targets?.calories && (
+                  <ReferenceLine
+                    y={targets.calories}
+                    stroke="#FC4C02"
+                    strokeDasharray="4 3"
+                    strokeOpacity={0.5}
+                  />
+                )}
+                {targets?.protein && (
+                  <ReferenceLine
+                    y={targets.protein}
+                    stroke="#16A34A"
+                    strokeDasharray="4 3"
+                    strokeOpacity={0.5}
+                  />
+                )}
+                <Line
+                  type="monotone"
+                  dataKey="calorias"
+                  stroke="#FC4C02"
+                  strokeWidth={2.5}
+                  dot={false}
+                  name="Calorias"
+                />
+                <Line
+                  type="monotone"
+                  dataKey="proteina"
+                  stroke="#16A34A"
+                  strokeWidth={2.5}
+                  dot={false}
+                  name="Proteína"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+            <div className="mt-2 flex gap-4 text-xs text-slate-400">
+              <span>
+                <i className="mr-1 inline-block h-2 w-2 rounded-full bg-primary" />
+                Calorias
+              </span>
+              <span>
+                <i className="mr-1 inline-block h-2 w-2 rounded-full bg-success" />
+                Proteínas
+              </span>
+              <span className="ml-auto text-[10px]">- - meta</span>
+            </div>
+          </>
+        ) : (
+          <Empty>Sem refeições neste mês.</Empty>
+        )}
+      </Card>
+
+      {/* Water bar chart */}
       <Card className="mb-4">
         <SectionTitle>Água ingerida</SectionTitle>
         {mealSeries.length ? (
@@ -84,45 +226,55 @@ export function ProgressPage({ data }: { data: FitnessData }) {
               <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
               <YAxis hide />
               <Tooltip formatter={(value) => [`${value} ml`, "Água"]} />
-              <Bar dataKey="agua" fill="#FC4C02" radius={[7, 7, 0, 0]} />
+              {targets?.waterMl && (
+                <ReferenceLine
+                  y={targets.waterMl}
+                  stroke="#0ea5e9"
+                  strokeDasharray="4 3"
+                  strokeOpacity={0.5}
+                />
+              )}
+              <Bar dataKey="agua" fill="#0ea5e9" radius={[7, 7, 0, 0]} name="Água" />
             </BarChart>
           </ResponsiveContainer>
-        ) : <Empty>Sem registos de água neste mês.</Empty>}
+        ) : (
+          <Empty>Sem registos de água neste mês.</Empty>
+        )}
       </Card>
 
+      {/* Measurements chart */}
       <Card className="mb-4">
-        <SectionTitle
-          aside={
-            <select className="compact-select" value={String(measurement)} onChange={(event) => setMeasurement(event.target.value as keyof MeasurementEntry)}>
-              {measurementOptions.map((option) => <option key={String(option.key)} value={String(option.key)}>{option.label}</option>)}
-            </select>
-          }
-        >
-          Medidas mensais
-        </SectionTitle>
-        {measureSeries.length ? <SimpleLine data={measureSeries} keyName="valor" color="#16A34A" suffix={measurement === "gordura" ? "%" : " cm"} /> : <Empty>Sem medidas registadas.</Empty>}
-      </Card>
-
-      <Card className="mb-4">
-        <SectionTitle>Calorias e proteínas</SectionTitle>
-        {mealSeries.length ? (
-          <ResponsiveContainer width="100%" height={185}>
-            <LineChart data={mealSeries}>
-              <CartesianGrid vertical={false} stroke="#eef2f7" />
-              <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
-              <YAxis hide />
-              <Tooltip />
-              <Line type="monotone" dataKey="calorias" stroke="#FC4C02" strokeWidth={2.5} dot={false} />
-              <Line type="monotone" dataKey="proteina" stroke="#16A34A" strokeWidth={2.5} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        ) : <Empty>Sem refeições neste mês.</Empty>}
-        <div className="mt-2 flex gap-4 text-xs text-slate-400">
-          <span><i className="mr-1 inline-block h-2 w-2 rounded-full bg-primary" /> Calorias</span>
-          <span><i className="mr-1 inline-block h-2 w-2 rounded-full bg-success" /> Proteínas</span>
+        <SectionTitle>Medidas corporais</SectionTitle>
+        {/* Horizontal chip tabs */}
+        <div className="hide-scrollbar mb-3 flex gap-2 overflow-x-auto pb-1">
+          {measurementOptions.map((opt) => (
+            <button
+              key={String(opt.key)}
+              type="button"
+              onClick={() => setMeasurement(opt.key)}
+              className={`flex-shrink-0 rounded-2xl border px-3 py-1.5 text-xs font-medium transition-colors ${
+                measurement === opt.key
+                  ? "border-success bg-success/10 text-success"
+                  : "border-outline bg-white text-muted"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
         </div>
+        {measureSeries.length ? (
+          <SimpleLine
+            data={measureSeries}
+            keyName="valor"
+            color="#16A34A"
+            suffix={measurement === "gordura" ? "%" : " cm"}
+          />
+        ) : (
+          <Empty>Sem medidas registadas.</Empty>
+        )}
       </Card>
 
+      {/* Workout frequency */}
       <Card className="mb-4">
         <SectionTitle>Treinos concluídos</SectionTitle>
         <ResponsiveContainer width="100%" height={150}>
@@ -130,23 +282,52 @@ export function ProgressPage({ data }: { data: FitnessData }) {
             <XAxis dataKey="label" tickLine={false} axisLine={false} />
             <YAxis allowDecimals={false} hide />
             <Tooltip />
-            <Bar dataKey="treinos" fill="#FC4C02" radius={[8, 8, 0, 0]} />
+            <Bar dataKey="treinos" fill="#FC4C02" radius={[8, 8, 0, 0]} name="Treinos" />
           </BarChart>
         </ResponsiveContainer>
       </Card>
 
+      {/* Monthly calendar */}
       <Calendar data={data} month={month} />
 
+      {/* Monthly report */}
       <Card>
         <SectionTitle>Relatório mensal</SectionTitle>
         <div className="mb-4 space-y-2 text-sm text-slate-600">
-          <p>Alimentação registada: <strong className="text-slate-900">{report.daysTracked} dias</strong></p>
-          <p>Água média: <strong className="text-slate-900">{report.avgWater} ml/dia</strong></p>
-          <p>Creatina tomada: <strong className="text-slate-900">{report.creatineDays} dias</strong></p>
-          <p>Variação de peso: <strong className="text-slate-900">{report.weightDifference === null ? "Sem comparação" : `${report.weightDifference > 0 ? "+" : ""}${report.weightDifference} kg`}</strong></p>
-          <p>Treinos concluídos: <strong className="text-slate-900">{report.completedWorkouts}</strong></p>
+          <p>
+            Alimentação registada:{" "}
+            <strong className="text-slate-900">{report.daysTracked} dias</strong>
+          </p>
+          <p>
+            Água média:{" "}
+            <strong className="text-slate-900">{report.avgWater} ml/dia</strong>
+          </p>
+          <p>
+            Creatina tomada:{" "}
+            <strong className="text-slate-900">{report.creatineDays} dias</strong>
+          </p>
+          <p>
+            Variação de peso:{" "}
+            <strong className="text-slate-900">
+              {report.weightDifference === null
+                ? "Sem comparação"
+                : `${report.weightDifference > 0 ? "+" : ""}${report.weightDifference} kg`}
+            </strong>
+          </p>
+          <p>
+            Treinos concluídos:{" "}
+            <strong className="text-slate-900">{report.completedWorkouts}</strong>
+          </p>
+          <p>
+            Dias na meta:{" "}
+            <strong className="text-slate-900">{report.successfulDays} dias</strong>
+          </p>
         </div>
-        <button type="button" className="btn-primary flex w-full justify-center gap-2 py-3" onClick={() => exportMonthlyPdf(data, month)}>
+        <button
+          type="button"
+          className="btn-primary flex w-full justify-center gap-2 py-3"
+          onClick={() => exportMonthlyPdf(data, month)}
+        >
           <Download size={17} /> Exportar PDF
         </button>
       </Card>
@@ -154,16 +335,31 @@ export function ProgressPage({ data }: { data: FitnessData }) {
   );
 }
 
-function Summary({ label, value }: { label: string; value: string }) {
+/* ─── Summary tile ────────────────────────────────────────────────────────── */
+
+function SummaryTile({ label, value, unit }: { label: string; value: string; unit: string }) {
   return (
     <Card>
-      <p className="text-xs text-slate-400">{label}</p>
-      <p className="mt-1 text-lg font-semibold">{value}</p>
+      <p className="text-[10px] font-medium text-slate-400">{label}</p>
+      <p className="mt-1 text-lg font-bold text-ink">{value}</p>
+      <p className="text-[10px] text-muted">{unit}</p>
     </Card>
   );
 }
 
-function SimpleLine({ data, keyName, color, suffix }: { data: Record<string, string | number>[]; keyName: string; color: string; suffix: string }) {
+/* ─── Simple line chart ───────────────────────────────────────────────────── */
+
+function SimpleLine({
+  data,
+  keyName,
+  color,
+  suffix
+}: {
+  data: Record<string, string | number>[];
+  keyName: string;
+  color: string;
+  suffix: string;
+}) {
   return (
     <ResponsiveContainer width="100%" height={165}>
       <LineChart data={data}>
@@ -171,25 +367,40 @@ function SimpleLine({ data, keyName, color, suffix }: { data: Record<string, str
         <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 10 }} />
         <YAxis hide domain={["dataMin - 1", "dataMax + 1"]} />
         <Tooltip formatter={(value) => [`${value}${suffix}`, ""]} />
-        <Line type="monotone" dataKey={keyName} stroke={color} strokeWidth={2.5} dot={{ fill: color, r: 3 }} />
+        <Line
+          type="monotone"
+          dataKey={keyName}
+          stroke={color}
+          strokeWidth={2.5}
+          dot={{ fill: color, r: 3 }}
+        />
       </LineChart>
     </ResponsiveContainer>
   );
 }
 
+/* ─── Monthly calendar ────────────────────────────────────────────────────── */
+
 function Calendar({ data, month }: { data: FitnessData; month: string }) {
   const dates = daysInMonth(month);
   const blankCells = new Date(`${month}-01T12:00:00`).getDay();
+
   return (
     <Card className="mb-4">
       <SectionTitle>Calendário mensal</SectionTitle>
       <div className="mb-2 grid grid-cols-7 text-center text-[11px] font-medium text-slate-400">
-        {["D", "S", "T", "Q", "Q", "S", "S"].map((label, index) => <span key={`${label}${index}`}>{label}</span>)}
+        {["D", "S", "T", "Q", "Q", "S", "S"].map((label, index) => (
+          <span key={`${label}${index}`}>{label}</span>
+        ))}
       </div>
       <div className="grid grid-cols-7 gap-y-3 text-center">
-        {Array.from({ length: blankCells }, (_, index) => <span key={`blank-${index}`} />)}
+        {Array.from({ length: blankCells }, (_, index) => (
+          <span key={`blank-${index}`} />
+        ))}
         {dates.map((date) => {
-          const hasMeals = Boolean(data.logs[date] && Object.values(data.logs[date].meals).flat().length);
+          const hasMeals = Boolean(
+            data.logs[date] && Object.values(data.logs[date].meals).flat().length
+          );
           const trained = data.completedWorkouts.some((entry) => entry.date === date);
           const weighted = data.weights.some((entry) => entry.date === date);
           const measured = data.measurements.some((entry) => entry.date === date);
@@ -220,10 +431,20 @@ function Calendar({ data, month }: { data: FitnessData; month: string }) {
   );
 }
 
-function Legend({ icon: Icon, color, label }: { icon: typeof Dumbbell; color: string; label: string }) {
+function Legend({
+  icon: Icon,
+  color,
+  label
+}: {
+  icon: typeof Dumbbell;
+  color: string;
+  label: string;
+}) {
   return (
     <div className="flex items-center gap-2">
-      <i className={`calendar-dot ${color}`} /><Icon size={13} />{label}
+      <i className={`calendar-dot ${color}`} />
+      <Icon size={13} />
+      {label}
     </div>
   );
 }

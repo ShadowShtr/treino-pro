@@ -1,5 +1,21 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Cloud, Download, LogIn, LogOut, Monitor, Moon, Pencil, Plus, RotateCcw, ShieldAlert, Smartphone, Sun, Trash2, Upload } from "lucide-react";
+import {
+  CheckCircle2,
+  Cloud,
+  Download,
+  LogIn,
+  LogOut,
+  Monitor,
+  Moon,
+  Pencil,
+  Plus,
+  RotateCcw,
+  ShieldAlert,
+  Sun,
+  Trash2,
+  Upload,
+  User,
+} from "lucide-react";
 import { Card, Empty, Modal, PageHeader, SectionTitle } from "../components/Ui";
 import { measurementFields, NumberField } from "./Onboarding";
 import { GoalsExplanation } from "../components/GoalsExplanation";
@@ -8,11 +24,46 @@ import { exportBackup, parseBackup } from "../lib/storage";
 import { emptyMeasurements } from "../data/seed";
 import { SOMATOTYPE_DESCRIPTIONS, SOMATOTYPE_LABELS } from "../lib/fitnessFormulas";
 import type { AuthSyncResult, ResetScope, useFitnessData } from "../hooks/useFitnessData";
-import type { AppTheme, FitnessData, MeasurementEntry, Measurements, Profile, Somatotype, SyncStatus, WeightEntry } from "../types";
+import type {
+  AppTheme,
+  FitnessData,
+  MeasurementEntry,
+  Measurements,
+  Profile,
+  Somatotype,
+  SyncStatus,
+  WeightEntry,
+} from "../types";
 
 type Actions = ReturnType<typeof useFitnessData>["actions"];
 
-export function ProfilePage({ data, actions, syncStatus }: { data: FitnessData; actions: Actions; syncStatus: SyncStatus }) {
+const objectiveLabels: Record<string, string> = {
+  manter: "Manter peso",
+  ganho_controlado: "Ganho muscular",
+  perda_controlada: "Perda de peso",
+  recomposicao: "Recomposição corporal",
+};
+
+const activityLabels: Record<string, string> = {
+  sedentario: "Sedentário",
+  leve: "Leve",
+  moderado: "Moderado",
+  intenso: "Intenso",
+  muito_intenso: "Muito intenso",
+};
+
+// ─────────────────────────────────────────────────────
+// Profile page
+// ─────────────────────────────────────────────────────
+export function ProfilePage({
+  data,
+  actions,
+  syncStatus,
+}: {
+  data: FitnessData;
+  actions: Actions;
+  syncStatus: SyncStatus;
+}) {
   const profile = data.profile!;
   const [form, setForm] = useState(profile);
   const [weight, setWeight] = useState<WeightEntry | null>(null);
@@ -23,8 +74,10 @@ export function ProfilePage({ data, actions, syncStatus }: { data: FitnessData; 
   const [cloudChoiceOpen, setCloudChoiceOpen] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
   const latestMeasures = [...data.measurements].sort((a, b) => b.date.localeCompare(a.date))[0];
   const completion = bodyCompletion(profile, latestMeasures);
+
   useEffect(() => setForm(profile), [profile]);
 
   function openMissing(target: MissingTarget) {
@@ -32,8 +85,7 @@ export function ProfilePage({ data, actions, syncStatus }: { data: FitnessData; 
       document.getElementById("dados-perfil")?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
-    if (target === "cintura" || target === "gordura") setFocusMeasure(target);
-    else setFocusMeasure(null);
+    setFocusMeasure(target === "cintura" || target === "gordura" ? target : null);
     setMeasures(latestMeasures ?? { id: "", date: todayISO(), ...emptyMeasurements });
   }
 
@@ -52,35 +104,94 @@ export function ProfilePage({ data, actions, syncStatus }: { data: FitnessData; 
   async function runOnce(key: string, action: () => Promise<void>) {
     if (busyAction) return;
     setBusyAction(key);
-    try {
-      await action();
-    } finally {
-      setBusyAction(null);
-    }
+    try { await action(); }
+    finally { setBusyAction(null); }
   }
+
+  const initials = profile.nome
+    ? profile.nome.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()
+    : "?";
 
   return (
     <>
       <PageHeader eyebrow="Dados pessoais" title="Perfil" />
-      <div className="mb-4"><GoalsExplanation profile={profile} measurements={latestMeasures} /></div>
 
+      {/* ── Profile avatar card ── */}
       <Card className="mb-4">
-        <SectionTitle>Completar dados corporais</SectionTitle>
-        <p className="text-xl font-extrabold text-ink">Perfil corporal {completion.percent}% completo</p>
-        <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
-          <div className="h-full rounded-full bg-primary" style={{ width: `${completion.percent}%` }} />
+        <div className="flex items-center gap-4">
+          {/* Avatar */}
+          <div className="relative shrink-0">
+            <svg width="64" height="64" viewBox="0 0 64 64">
+              <circle cx="32" cy="32" r="29" fill="none" stroke="#f1f5f9" strokeWidth="5" />
+              <circle
+                cx="32" cy="32" r="29"
+                fill="none"
+                stroke="#fc4c02"
+                strokeWidth="5"
+                strokeDasharray={`${2 * Math.PI * 29}`}
+                strokeDashoffset={`${2 * Math.PI * 29 * (1 - completion.percent / 100)}`}
+                strokeLinecap="round"
+                transform="rotate(-90 32 32)"
+              />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary-light">
+                {profile.nome
+                  ? <span className="text-base font-bold text-primary">{initials}</span>
+                  : <User size={20} className="text-primary" />
+                }
+              </div>
+            </div>
+          </div>
+
+          {/* Info */}
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-lg font-bold text-ink">{profile.nome || "Sem nome"}</p>
+            <p className="text-sm text-muted">
+              {profile.altura > 0 ? `${profile.altura} cm` : "—"} ·{" "}
+              {profile.pesoAtual > 0 ? `${profile.pesoAtual} kg` : "—"} ·{" "}
+              {profile.idade > 0 ? `${profile.idade} anos` : "—"}
+            </p>
+            <div className="mt-1.5 flex items-center gap-2">
+              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+                <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${completion.percent}%` }} />
+              </div>
+              <span className="shrink-0 text-xs font-bold text-primary">{completion.percent}%</span>
+            </div>
+          </div>
         </div>
-        <div className="mt-4 space-y-2">
-          {completion.missing.length ? completion.missing.map((item) => (
-            <button key={item.label} type="button" className="flex w-full items-center justify-between rounded-2xl bg-slate-50 px-3 py-2 text-left text-sm text-muted" onClick={() => openMissing(item.target)}>
-              <span>{item.label}</span><span className="text-primary">Preencher</span>
-            </button>
-          )) : (
-            <p className="rounded-2xl bg-primary-light px-3 py-2 text-sm text-ink">Dados corporais principais completos.</p>
-          )}
-        </div>
+
+        {/* Missing fields */}
+        {completion.missing.length > 0 && (
+          <div className="mt-4 space-y-1.5">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Completar perfil</p>
+            {completion.missing.map((item) => (
+              <button
+                key={item.label}
+                type="button"
+                className="flex w-full items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-left text-sm"
+                onClick={() => openMissing(item.target)}
+              >
+                <span className="text-muted">{item.label}</span>
+                <span className="text-xs font-semibold text-primary">Preencher</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {completion.missing.length === 0 && (
+          <div className="mt-3 flex items-center gap-2 rounded-xl bg-primary-light px-3 py-2">
+            <CheckCircle2 size={15} className="text-primary" />
+            <p className="text-xs font-medium text-primary">Dados corporais completos</p>
+          </div>
+        )}
       </Card>
 
+      {/* ── Goals summary ── */}
+      <div className="mb-4">
+        <GoalsExplanation profile={profile} measurements={latestMeasures} />
+      </div>
+
+      {/* ── Theme ── */}
       <Card className="mb-4">
         <SectionTitle>Tema do app</SectionTitle>
         <div className="grid grid-cols-3 gap-2">
@@ -98,48 +209,60 @@ export function ProfilePage({ data, actions, syncStatus }: { data: FitnessData; 
         </div>
       </Card>
 
+      {/* ── Profile form ── */}
       <Card className="mb-4" id="dados-perfil">
         <SectionTitle>Dados do perfil</SectionTitle>
-        <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); actions.saveProfile(form); }}>
-          <label className="field-label">Nome
-            <input value={form.nome} onChange={(event) => setForm({ ...form, nome: event.target.value })} placeholder="Opcional" />
+        <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); actions.saveProfile(form); }}>
+          <label className="field-label">
+            Nome
+            <input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} placeholder="Opcional" />
           </label>
           <div className="grid grid-cols-2 gap-3">
             <NumberField label="Idade" value={form.idade} placeholder="Ex: 26" onChange={(idade) => setForm({ ...form, idade })} />
-            <label className="field-label">Sexo
-              <select value={form.sexo} onChange={(event) => setForm({ ...form, sexo: event.target.value as Profile["sexo"] })}>
+            <label className="field-label">
+              Sexo
+              <select value={form.sexo} onChange={(e) => setForm({ ...form, sexo: e.target.value as Profile["sexo"] })}>
                 <option value="masculino">Masculino</option>
                 <option value="feminino">Feminino</option>
               </select>
             </label>
-            <NumberField label="Altura (cm)" value={form.altura} placeholder="Ex: 170" onChange={(altura) => setForm({ ...form, altura })} />
-            <NumberField label="Peso desejado" step="0.1" optional placeholder="Ex: 78" value={form.pesoDesejado} onChange={(pesoDesejado) => setForm({ ...form, pesoDesejado })} />
+            <NumberField label="Altura (cm)" value={form.altura} placeholder="Ex: 175" onChange={(altura) => setForm({ ...form, altura })} />
+            <NumberField label="Peso desejado" step="0.1" optional placeholder="Opcional" value={form.pesoDesejado} onChange={(pesoDesejado) => setForm({ ...form, pesoDesejado })} />
             <NumberField label="Treinos/semana" max={7} value={form.frequenciaTreino} onChange={(frequenciaTreino) => setForm({ ...form, frequenciaTreino })} />
-            <label className="field-label">Atividade
-              <select value={form.atividade} onChange={(event) => setForm({ ...form, atividade: event.target.value as Profile["atividade"] })}>
-                <option value="sedentario">Sedentário</option>
-                <option value="leve">Leve</option>
-                <option value="moderado">Moderado</option>
-                <option value="intenso">Intenso</option>
-                <option value="muito_intenso">Muito intenso</option>
+            <label className="field-label">
+              Atividade
+              <select value={form.atividade} onChange={(e) => setForm({ ...form, atividade: e.target.value as Profile["atividade"] })}>
+                {Object.entries(activityLabels).map(([val, label]) => (
+                  <option key={val} value={val}>{label}</option>
+                ))}
               </select>
             </label>
           </div>
-          <label className="field-label">Objetivo
-            <select value={form.objetivo} onChange={(event) => setForm({ ...form, objetivo: event.target.value as Profile["objetivo"] })}>
-              <option value="manter">Manter peso</option>
-              <option value="ganho_controlado">Ganho controlado</option>
-              <option value="perda_controlada">Perda controlada</option>
-              <option value="recomposicao">Recomposição corporal</option>
+          <label className="field-label">
+            Objetivo
+            <select value={form.objetivo} onChange={(e) => setForm({ ...form, objetivo: e.target.value as Profile["objetivo"] })}>
+              {Object.entries(objectiveLabels).map(([val, label]) => (
+                <option key={val} value={val}>{label}</option>
+              ))}
             </select>
           </label>
-          <SomatotypePicker value={form.biotipo ?? "nao_sei"} onChange={(biotipo) => setForm({ ...form, biotipo })} />
+          <ProfileSomatotypePicker value={form.biotipo ?? "nao_sei"} onChange={(biotipo) => setForm({ ...form, biotipo })} />
           <button className="btn-primary w-full py-3" type="submit">Guardar perfil</button>
         </form>
       </Card>
 
+      {/* ── Weight ── */}
       <Card className="mb-4">
-        <SectionTitle aside={<button className="text-sm font-medium text-primary" onClick={() => setWeight({ id: "", date: todayISO(), weight: profile.pesoAtual })}><Plus size={15} className="inline" /> Registar</button>}>
+        <SectionTitle
+          aside={
+            <button
+              className="flex items-center gap-1 text-sm font-semibold text-primary"
+              onClick={() => setWeight({ id: "", date: todayISO(), weight: profile.pesoAtual })}
+            >
+              <Plus size={15} /> Registar
+            </button>
+          }
+        >
           Peso semanal
         </SectionTitle>
         <EntryList
@@ -150,103 +273,164 @@ export function ProfilePage({ data, actions, syncStatus }: { data: FitnessData; 
         />
       </Card>
 
+      {/* ── Measurements ── */}
       <Card className="mb-4">
-        <SectionTitle aside={<button className="text-sm font-medium text-primary" onClick={() => setMeasures({ id: "", date: todayISO(), ...emptyMeasurements })}><Plus size={15} className="inline" /> Registar</button>}>
+        <SectionTitle
+          aside={
+            <button
+              className="flex items-center gap-1 text-sm font-semibold text-primary"
+              onClick={() => setMeasures({ id: "", date: todayISO(), ...emptyMeasurements })}
+            >
+              <Plus size={15} /> Registar
+            </button>
+          }
+        >
           Medidas mensais
         </SectionTitle>
         <EntryList
           entries={[...data.measurements].sort((a, b) => b.date.localeCompare(a.date))}
-          value={(entry) => `Cintura ${entry.cintura} cm • Gordura ${entry.gordura}%`}
+          value={(entry) => `Cintura ${entry.cintura || "—"} cm · Gordura ${entry.gordura || "—"}%`}
           onEdit={(entry) => setMeasures(entry)}
           onDelete={(entry) => actions.deleteMeasurement(entry.id)}
         />
       </Card>
 
+      {/* ── Account & Security ── */}
       <Card>
-        <SectionTitle>Dados e segurança</SectionTitle>
-        <div className="mb-4 flex gap-3 rounded-2xl bg-primary-light p-3 text-sm leading-6 text-slate-600">
-          <Smartphone size={20} className="mt-0.5 shrink-0 text-primary" />
-          <p>{syncNotice(syncStatus)} Também pode exportar um backup JSON como cópia de segurança adicional.</p>
-        </div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Conta e sincronização</p>
-        <div className="mb-4 rounded-2xl border border-outline bg-slate-50 p-3">
-          <div className="mb-3 flex items-start gap-3">
-            <Cloud size={19} className="mt-0.5 text-primary" />
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-ink">{syncStatus.authenticated ? "Conta conectada" : "Sem login"}</p>
-              <p className="mt-1 text-xs leading-5 text-muted">{syncStatus.message}</p>
-              <p className="mt-1 text-xs text-muted">E-mail: {syncStatus.userEmail ?? "-"}</p>
-              <p className="text-xs text-muted">Última sincronização: {formatSyncDate(syncStatus.lastSyncedAt)}</p>
-              <p className="text-xs text-muted">Status: {syncStatusLabel(syncStatus.state)}</p>
+        <SectionTitle>Conta e dados</SectionTitle>
+
+        {/* Sync status */}
+        <div className="mb-4 rounded-2xl border border-outline bg-slate-50 p-4">
+          <div className="mb-3 flex items-center gap-3">
+            <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${syncStatus.authenticated ? "bg-primary-light" : "bg-slate-100"}`}>
+              <Cloud size={18} className={syncStatus.authenticated ? "text-primary" : "text-muted"} />
             </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-ink">
+                {syncStatus.authenticated ? "Conta conectada" : "Sem login"}
+              </p>
+              <p className="text-xs text-muted">
+                {syncStatus.authenticated ? syncStatus.userEmail ?? "—" : "Dados apenas neste dispositivo"}
+              </p>
+            </div>
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${syncStatusStyle(syncStatus.state)}`}>
+              {syncStatusLabel(syncStatus.state)}
+            </span>
           </div>
+
+          {syncStatus.authenticated && syncStatus.lastSyncedAt && (
+            <p className="mb-3 text-xs text-muted">
+              Última sincronização: {formatSyncDate(syncStatus.lastSyncedAt)}
+            </p>
+          )}
+
           <div className="grid grid-cols-2 gap-2">
             {syncStatus.authenticated ? (
               <>
-                <button className="btn-secondary justify-center py-3 disabled:opacity-50" type="button" disabled={Boolean(busyAction)} onClick={() => runOnce("sync", actions.syncNow)}>Sincronizar agora</button>
-                <button className="btn-secondary justify-center py-3 disabled:opacity-50" type="button" disabled={Boolean(busyAction)} onClick={() => runOnce("signout", actions.signOut)}><LogOut size={17} /> Sair</button>
+                <button
+                  className="btn-secondary justify-center py-3 disabled:opacity-50"
+                  type="button"
+                  disabled={Boolean(busyAction)}
+                  onClick={() => runOnce("sync", actions.syncNow)}
+                >
+                  {busyAction === "sync" ? "Salvando…" : "Sincronizar"}
+                </button>
+                <button
+                  className="btn-secondary justify-center py-3 disabled:opacity-50"
+                  type="button"
+                  disabled={Boolean(busyAction)}
+                  onClick={() => runOnce("signout", actions.signOut)}
+                >
+                  <LogOut size={16} /> Sair
+                </button>
               </>
             ) : (
-              <button className="btn-secondary col-span-2 justify-center py-3" type="button" onClick={() => setAuthOpen(true)} disabled={!syncStatus.configured}>
+              <button
+                className="btn-secondary col-span-2 justify-center py-3 disabled:opacity-40"
+                type="button"
+                onClick={() => setAuthOpen(true)}
+                disabled={!syncStatus.configured}
+              >
                 <LogIn size={17} /> Entrar / Criar conta
               </button>
             )}
           </div>
+
+          {!syncStatus.authenticated && (
+            <p className="mt-3 text-xs leading-5 text-muted">
+              Faça login para sincronizar dados entre dispositivos e ter backup na nuvem.
+            </p>
+          )}
         </div>
-        {!syncStatus.authenticated && (
-          <p className="mb-4 rounded-2xl bg-primary-light p-3 text-sm leading-5 text-muted">
-            Dados guardados apenas neste dispositivo. Faça login para sincronizar com a nuvem.
+
+        {/* Backup */}
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">Backup</p>
+        <div className="mb-4 grid grid-cols-2 gap-2">
+          <button className="btn-secondary justify-center py-3" onClick={() => exportBackup(data)}>
+            <Download size={16} /> Exportar JSON
+          </button>
+          <button className="btn-secondary justify-center py-3" onClick={() => inputRef.current?.click()}>
+            <Upload size={16} /> Importar JSON
+          </button>
+        </div>
+
+        {/* Reset */}
+        <div className="border-t border-outline pt-4">
+          <div className="mb-2 flex items-center gap-2">
+            <ShieldAlert size={17} className="text-danger" />
+            <p className="text-sm font-bold text-danger">Resetar dados</p>
+          </div>
+          <p className="mb-3 text-sm leading-5 text-muted">
+            Escolha o que pretende apagar. Esta ação não pode ser desfeita.
           </p>
-        )}
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Backup</p>
-        <div className="grid grid-cols-2 gap-2">
-          <button className="btn-secondary flex justify-center gap-2 py-3" onClick={() => exportBackup(data)}>
-            <Download size={17} /> Exportar JSON
-          </button>
-          <button className="btn-secondary flex justify-center gap-2 py-3" onClick={() => inputRef.current?.click()}>
-            <Upload size={17} /> Importar JSON
-          </button>
+          <div className="space-y-2">
+            {resetOptions.map(({ scope, label, description }) => (
+              <button
+                key={scope}
+                type="button"
+                className="flex w-full items-center justify-between gap-3 rounded-2xl border border-outline px-3 py-3 text-left transition-colors hover:border-danger/40 hover:bg-red-50/50"
+                onClick={() => setResetScope(scope)}
+              >
+                <span>
+                  <span className="block text-sm font-medium text-ink">{label}</span>
+                  <span className="block text-xs text-muted">{description}</span>
+                </span>
+                <RotateCcw size={15} className={scope === "tudo" ? "shrink-0 text-danger" : "shrink-0 text-primary"} />
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="my-5 border-t border-outline" />
-        <div className="mb-3 flex items-center gap-2 text-danger">
-          <ShieldAlert size={18} />
-          <p className="text-sm font-semibold">Resetar dados</p>
-        </div>
-        <p className="mb-3 text-sm leading-6 text-slate-500">
-          Escolha somente os registos que pretende apagar. Esta ação não pode ser anulada.
-        </p>
-        <div className="space-y-2">
-          {resetOptions.map(({ scope, label, description }) => (
-            <button
-              type="button"
-              key={scope}
-              className="flex w-full items-center justify-between gap-3 rounded-2xl border border-outline px-3 py-3 text-left"
-              onClick={() => setResetScope(scope)}
-            >
-              <span>
-                <span className="block text-sm font-medium text-ink">{label}</span>
-                <span className="block text-xs text-muted">{description}</span>
-              </span>
-              <RotateCcw size={16} className={scope === "tudo" ? "text-danger" : "text-primary"} />
-            </button>
-          ))}
-        </div>
+
         <div className="mt-5 flex items-center justify-between border-t border-outline pt-4 text-xs text-muted">
-          <span>Travizani Fitness</span>
+          <span>TREINO PRO</span>
           <span>Versão 1.0.0</span>
         </div>
-        <input ref={inputRef} className="hidden" accept="application/json" type="file" onChange={(event) => importFile(event.target.files?.[0])} />
+
+        <input
+          ref={inputRef}
+          className="hidden"
+          accept="application/json"
+          type="file"
+          onChange={(e) => importFile(e.target.files?.[0])}
+        />
       </Card>
 
-      <WeightModal entry={weight} onClose={() => setWeight(null)} onSave={(entry) => { if (actions.saveWeight(entry, weight?.id || undefined)) setWeight(null); }} />
-      <MeasurementModal entry={measures} focusKey={focusMeasure} onClose={() => setMeasures(null)} onSave={(entry) => { actions.saveMeasurement(entry, measures?.id || undefined); setMeasures(null); }} />
+      {/* Modals */}
+      <WeightModal
+        entry={weight}
+        onClose={() => setWeight(null)}
+        onSave={(entry) => { if (actions.saveWeight(entry, weight?.id || undefined)) setWeight(null); }}
+      />
+      <MeasurementModal
+        entry={measures}
+        focusKey={focusMeasure}
+        onClose={() => setMeasures(null)}
+        onSave={(entry) => { actions.saveMeasurement(entry, measures?.id || undefined); setMeasures(null); }}
+      />
       <ResetDataModal
         scope={resetScope}
         onClose={() => setResetScope(null)}
-        onConfirm={() => {
-          if (resetScope) actions.resetRecords(resetScope);
-          setResetScope(null);
-        }}
+        onConfirm={() => { if (resetScope) actions.resetRecords(resetScope); setResetScope(null); }}
       />
       <AuthModal
         open={authOpen}
@@ -272,112 +456,173 @@ export function ProfilePage({ data, actions, syncStatus }: { data: FitnessData; 
   );
 }
 
-const resetOptions: { scope: ResetScope; label: string; description: string }[] = [
-  { scope: "alimentacao", label: "Apagar alimentação", description: "Remove refeições registadas." },
-  { scope: "treinos", label: "Apagar treinos", description: "Remove planos e histórico de conclusão." },
-  { scope: "evolucao", label: "Apagar evolução", description: "Remove pesos e medidas registados." },
-  { scope: "agua_creatina", label: "Apagar água e creatina", description: "Remove hidratação e checklist diário." },
-  { scope: "tudo", label: "Apagar tudo", description: "Reinicia todo o perfil e histórico." }
-];
-
-const themeOptions: { value: AppTheme; label: string; icon: typeof Sun }[] = [
-  { value: "light", label: "Claro", icon: Sun },
-  { value: "dark", label: "Escuro", icon: Moon },
-  { value: "system", label: "Automático", icon: Monitor }
-];
-
-function syncStatusLabel(state: SyncStatus["state"]) {
-  return {
-    synced: "Sincronizado",
-    local: "Local",
-    pending: "Pendente",
-    syncing: "Salvando...",
-    error: "Erro ao sincronizar"
-  }[state];
-}
-
-function syncNotice(status: SyncStatus) {
-  if (!status.authenticated) {
-    return "Os seus dados ficam apenas neste dispositivo. Faça login para sincronizar com a nuvem.";
-  }
-  if (status.state === "synced") {
-    return "Os seus dados estão guardados neste dispositivo e sincronizados com a nuvem.";
-  }
-  if (status.state === "syncing") {
-    return status.message.includes("Carregando")
-      ? "Carregando dados da nuvem..."
-      : "Guardando alterações neste dispositivo e sincronizando com a nuvem...";
-  }
-  if (status.state === "pending") {
-    return "Os dados foram guardados neste dispositivo, mas ainda estão pendentes de sincronização.";
-  }
-  if (status.state === "error") {
-    return "Não foi possível sincronizar agora. Os dados continuam guardados neste dispositivo.";
-  }
-  return "Os seus dados ficam apenas neste dispositivo. Faça login para sincronizar com a nuvem.";
-}
-
-function formatSyncDate(value: string | null) {
-  if (!value) return "-";
-  return new Intl.DateTimeFormat("pt-BR", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit"
-  }).format(new Date(value));
-}
-
-type MissingTarget = "pesoDesejado" | "cintura" | "gordura" | "biotipo" | "medidas";
-
-function bodyCompletion(profile: Profile, measurements?: MeasurementEntry) {
-  const checks = [
-    { ok: profile.pesoDesejado > 0, label: "Peso desejado pendente", target: "pesoDesejado" as const },
-    { ok: Boolean(measurements?.cintura), label: "Cintura pendente", target: "cintura" as const },
-    { ok: Boolean(measurements?.gordura), label: "Percentual de gordura pendente", target: "gordura" as const },
-    { ok: Boolean(profile.biotipo && profile.biotipo !== "nao_sei"), label: "Biotipo pendente", target: "biotipo" as const },
-    {
-      ok: Boolean(measurements && measurementFields.every(({ key }) => measurements[key] > 0)),
-      label: "Medidas mensais pendentes",
-      target: "medidas" as const
-    }
-  ];
-  const required = 6;
-  const done = required + checks.filter((item) => item.ok).length;
-  return {
-    percent: Math.round((done / (required + checks.length)) * 100),
-    missing: checks.filter((item) => !item.ok).map((item) => ({ label: item.label, target: item.target }))
-  };
-}
-
-function SomatotypePicker({ value, onChange }: { value: Somatotype; onChange: (value: Somatotype) => void }) {
+// ─────────────────────────────────────────────────────
+// Somatotype picker (profile page version)
+// ─────────────────────────────────────────────────────
+function ProfileSomatotypePicker({ value, onChange }: { value: Somatotype; onChange: (v: Somatotype) => void }) {
   const options = Object.keys(SOMATOTYPE_LABELS) as Somatotype[];
   return (
     <div className="space-y-2">
       <p className="field-label">Biotipo percebido</p>
-      <div className="grid gap-2">
-        {options.map((option) => (
+      <div className="grid grid-cols-2 gap-2">
+        {options.map((opt) => (
           <button
-            key={option}
+            key={opt}
             type="button"
-            className={`rounded-2xl border p-3 text-left ${value === option ? "border-primary bg-primary-light" : "border-outline bg-white"}`}
-            onClick={() => onChange(option)}
+            className={`rounded-2xl border p-3 text-left transition-all ${value === opt ? "border-primary bg-primary-light" : "border-outline bg-white"}`}
+            onClick={() => onChange(opt)}
           >
-            <span className="block text-sm font-semibold text-ink">{SOMATOTYPE_LABELS[option]}</span>
-            <span className="mt-1 block text-xs leading-5 text-muted">{SOMATOTYPE_DESCRIPTIONS[option]}</span>
+            <span className={`block text-sm font-semibold ${value === opt ? "text-primary" : "text-ink"}`}>
+              {SOMATOTYPE_LABELS[opt]}
+            </span>
+            <span className="mt-0.5 block text-[11px] leading-4 text-muted">{SOMATOTYPE_DESCRIPTIONS[opt]}</span>
           </button>
         ))}
       </div>
       <p className="rounded-2xl bg-slate-50 p-3 text-xs leading-5 text-muted">
-        O biotipo é usado apenas como ajuste contextual. A base principal dos cálculos continua sendo peso, altura, idade, sexo, atividade, objetivo e evolução real.
+        O biotipo é apenas um ajuste contextual. A base principal são peso, altura, idade, sexo e atividade.
       </p>
     </div>
   );
 }
 
+// ─────────────────────────────────────────────────────
+// Entry list (weight / measurement)
+// ─────────────────────────────────────────────────────
+function EntryList<T extends { id: string; date: string }>({
+  entries, value, onEdit, onDelete,
+}: {
+  entries: T[];
+  value: (entry: T) => string;
+  onEdit: (entry: T) => void;
+  onDelete: (entry: T) => void;
+}) {
+  if (!entries.length) return <Empty>Nenhum registo ainda.</Empty>;
+  return (
+    <div className="space-y-2">
+      {entries.map((entry) => (
+        <div
+          key={entry.id}
+          className="flex items-center justify-between gap-2 rounded-2xl border border-outline bg-slate-50/60 px-3.5 py-3"
+        >
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-ink">{value(entry)}</p>
+            <p className="text-xs text-muted">{formatDate(entry.date)}</p>
+          </div>
+          <div className="flex shrink-0 gap-3 text-slate-400">
+            <button type="button" onClick={() => onEdit(entry)} aria-label="Editar">
+              <Pencil size={15} />
+            </button>
+            <button type="button" onClick={() => onDelete(entry)} aria-label="Remover" className="text-slate-300 hover:text-danger">
+              <Trash2 size={15} />
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────
+// Weight modal
+// ─────────────────────────────────────────────────────
+function WeightModal({
+  entry, onClose, onSave,
+}: {
+  entry: WeightEntry | null;
+  onClose: () => void;
+  onSave: (entry: Omit<WeightEntry, "id">) => void;
+}) {
+  const [weightText, setWeightText] = useState("");
+  useEffect(() => { setWeightText(entry?.weight ? String(entry.weight) : ""); }, [entry]);
+  if (!entry) return null;
+  return (
+    <Modal open title="Registar peso" onClose={onClose}>
+      <form
+        className="space-y-3"
+        onSubmit={(e: FormEvent<HTMLFormElement>) => {
+          e.preventDefault();
+          const fd = new FormData(e.currentTarget);
+          if (!weightText) { window.alert("Peso pendente."); return; }
+          onSave({ date: String(fd.get("date")), weight: Number(weightText) });
+        }}
+      >
+        <label className="field-label">
+          Data
+          <input type="date" name="date" required defaultValue={entry.date} />
+        </label>
+        <label className="field-label">
+          Peso (kg)
+          <input
+            type="number"
+            name="weight"
+            min="1"
+            step="0.1"
+            required
+            value={weightText}
+            placeholder="Ex: 74.5"
+            onChange={(e) => setWeightText(e.target.value.replace(/^0+(?=\d)/, ""))}
+          />
+        </label>
+        <button className="btn-primary w-full py-3" type="submit">Guardar peso</button>
+      </form>
+    </Modal>
+  );
+}
+
+// ─────────────────────────────────────────────────────
+// Measurement modal
+// ─────────────────────────────────────────────────────
+function MeasurementModal({
+  entry, focusKey, onClose, onSave,
+}: {
+  entry: MeasurementEntry | null;
+  focusKey: keyof Measurements | null;
+  onClose: () => void;
+  onSave: (entry: Omit<MeasurementEntry, "id">) => void;
+}) {
+  const [form, setForm] = useState<Measurements>(entry ?? emptyMeasurements);
+  useEffect(() => setForm(entry ?? emptyMeasurements), [entry]);
+  if (!entry) return null;
+  return (
+    <Modal open title="Registar medidas" onClose={onClose}>
+      <form
+        className="space-y-3"
+        onSubmit={(e: FormEvent<HTMLFormElement>) => {
+          e.preventDefault();
+          const fd = new FormData(e.currentTarget);
+          onSave({ date: String(fd.get("date")), ...form });
+        }}
+      >
+        <label className="field-label">
+          Data
+          <input type="date" name="date" required defaultValue={entry.date} />
+        </label>
+        <div className="grid grid-cols-2 gap-3">
+          {measurementFields.map(({ key, label }) => (
+            <NumberField
+              key={key}
+              label={label}
+              step="0.1"
+              optional
+              placeholder="Opcional"
+              autoFocus={focusKey === key}
+              value={form[key]}
+              onChange={(value) => setForm({ ...form, [key]: value })}
+            />
+          ))}
+        </div>
+        <button className="btn-primary w-full py-3" type="submit">Guardar medidas</button>
+      </form>
+    </Modal>
+  );
+}
+
+// ─────────────────────────────────────────────────────
+// Reset data modal
+// ─────────────────────────────────────────────────────
 function ResetDataModal({
-  scope,
-  onClose,
-  onConfirm
+  scope, onClose, onConfirm,
 }: {
   scope: ResetScope | null;
   onClose: () => void;
@@ -385,12 +630,9 @@ function ResetDataModal({
 }) {
   const [step, setStep] = useState<1 | 2>(1);
   const [typed, setTyped] = useState("");
-  useEffect(() => {
-    setStep(1);
-    setTyped("");
-  }, [scope]);
+  useEffect(() => { setStep(1); setTyped(""); }, [scope]);
   if (!scope) return null;
-  const selected = resetOptions.find((option) => option.scope === scope)!;
+  const selected = resetOptions.find((o) => o.scope === scope)!;
 
   return (
     <Modal open title="Confirmar eliminação" onClose={onClose}>
@@ -402,18 +644,23 @@ function ResetDataModal({
           </div>
           <div className="grid grid-cols-2 gap-2">
             <button className="btn-secondary justify-center py-3" type="button" onClick={onClose}>Cancelar</button>
-            <button className="flex min-h-11 items-center justify-center rounded-xl bg-danger px-3 text-sm font-semibold text-white" type="button" onClick={() => setStep(2)}>
+            <button
+              className="flex min-h-11 items-center justify-center rounded-xl bg-danger px-3 text-sm font-semibold text-white"
+              type="button"
+              onClick={() => setStep(2)}
+            >
               Continuar
             </button>
           </div>
         </>
       ) : (
         <>
-          <p className="mb-3 text-sm leading-6 text-slate-600">
-            Segunda confirmação: escreva <strong>APAGAR</strong> para confirmar.
+          <p className="mb-3 text-sm leading-6 text-muted">
+            Escreva <strong>APAGAR</strong> para confirmar.
           </p>
-          <label className="field-label mb-4">Confirmação
-            <input autoFocus value={typed} onChange={(event) => setTyped(event.target.value.toUpperCase())} placeholder="APAGAR" />
+          <label className="field-label mb-4">
+            Confirmação
+            <input autoFocus value={typed} onChange={(e) => setTyped(e.target.value.toUpperCase())} placeholder="APAGAR" />
           </label>
           <button
             className="flex min-h-12 w-full items-center justify-center rounded-xl bg-danger px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
@@ -429,10 +676,11 @@ function ResetDataModal({
   );
 }
 
+// ─────────────────────────────────────────────────────
+// Auth modal
+// ─────────────────────────────────────────────────────
 function AuthModal({
-  open,
-  onClose,
-  onDone
+  open, onClose, onDone,
 }: {
   open: boolean;
   onClose: () => void;
@@ -444,37 +692,46 @@ function AuthModal({
   const [busy, setBusy] = useState(false);
   if (!open) return null;
   return (
-    <Modal open title="Conta Supabase" onClose={onClose}>
-      <form className="space-y-3" onSubmit={async (event) => {
-        event.preventDefault();
-        setBusy(true);
-        try {
-          await onDone(mode, email, password);
-        } catch (error) {
-          window.alert(error instanceof Error ? error.message : "Não foi possível autenticar.");
-        } finally {
-          setBusy(false);
-        }
-      }}>
-        <div className="grid grid-cols-2 gap-2">
-          <button type="button" className={`toggle-button ${mode === "signin" ? "selected" : ""}`} onClick={() => setMode("signin")}>Entrar</button>
-          <button type="button" className={`toggle-button ${mode === "signup" ? "selected" : ""}`} onClick={() => setMode("signup")}>Criar conta</button>
-        </div>
-        <label className="field-label">E-mail<input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} /></label>
-        <label className="field-label">Senha<input type="password" required minLength={6} value={password} onChange={(event) => setPassword(event.target.value)} /></label>
-        <button className="btn-primary w-full py-3" type="submit" disabled={busy}>{busy ? "Aguarde..." : "Continuar"}</button>
+    <Modal open title="Conta TREINO PRO" onClose={onClose}>
+      <div className="mb-4 grid grid-cols-2 gap-2">
+        <button type="button" className={`toggle-button ${mode === "signin" ? "selected" : ""}`} onClick={() => setMode("signin")}>
+          Entrar
+        </button>
+        <button type="button" className={`toggle-button ${mode === "signup" ? "selected" : ""}`} onClick={() => setMode("signup")}>
+          Criar conta
+        </button>
+      </div>
+      <form
+        className="space-y-3"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          try { await onDone(mode, email, password); }
+          catch (err) { window.alert(err instanceof Error ? err.message : "Não foi possível autenticar."); }
+          finally { setBusy(false); }
+        }}
+      >
+        <label className="field-label">
+          E-mail
+          <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com" />
+        </label>
+        <label className="field-label">
+          Senha
+          <input type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mínimo 6 caracteres" />
+        </label>
+        <button className="btn-primary w-full py-3" type="submit" disabled={busy}>
+          {busy ? "Aguarde…" : mode === "signin" ? "Entrar" : "Criar conta"}
+        </button>
       </form>
     </Modal>
   );
 }
 
+// ─────────────────────────────────────────────────────
+// Cloud choice modal
+// ─────────────────────────────────────────────────────
 function CloudChoiceModal({
-  open,
-  busy,
-  onClose,
-  onUpload,
-  onUseCloud,
-  onExport
+  open, busy, onClose, onUpload, onUseCloud, onExport,
 }: {
   open: boolean;
   busy: boolean;
@@ -487,120 +744,86 @@ function CloudChoiceModal({
   return (
     <Modal open title="Sincronizar dados" onClose={onClose}>
       <p className="mb-4 text-sm leading-6 text-muted">
-        Encontramos dados neste dispositivo e/ou na nuvem. Escolha qual deseja usar.
+        Encontramos dados neste dispositivo e na nuvem. Qual deseja usar?
       </p>
       <div className="space-y-2">
-        <button className="btn-secondary w-full justify-center py-3 disabled:opacity-50" type="button" disabled={busy} onClick={onUseCloud}>Usar dados da nuvem</button>
-        <button className="btn-primary w-full py-3 disabled:opacity-50" type="button" disabled={busy} onClick={onUpload}>Enviar dados deste dispositivo</button>
-        <button className="btn-secondary w-full justify-center py-3" type="button" onClick={onExport}>Exportar backup antes</button>
+        <button className="btn-secondary w-full justify-center py-3 disabled:opacity-50" type="button" disabled={busy} onClick={onUseCloud}>
+          Usar dados da nuvem
+        </button>
+        <button className="btn-primary w-full py-3 disabled:opacity-50" type="button" disabled={busy} onClick={onUpload}>
+          Enviar dados deste dispositivo
+        </button>
+        <button className="btn-secondary w-full justify-center py-3" type="button" onClick={onExport}>
+          Exportar backup antes
+        </button>
       </div>
     </Modal>
   );
 }
 
-function EntryList<T extends { id: string; date: string }>({
-  entries,
-  value,
-  onEdit,
-  onDelete
-}: {
-  entries: T[];
-  value: (entry: T) => string;
-  onEdit: (entry: T) => void;
-  onDelete: (entry: T) => void;
-}) {
-  if (!entries.length) return <Empty>Nenhum registo ainda.</Empty>;
-  return (
-    <div className="space-y-2">
-      {entries.map((entry) => (
-        <div key={entry.id} className="flex items-center justify-between gap-2 rounded-2xl bg-slate-50 px-3 py-3">
-          <div>
-            <p className="text-sm font-medium">{value(entry)}</p>
-            <p className="text-xs text-slate-400">{formatDate(entry.date)}</p>
-          </div>
-          <div className="flex gap-2 text-slate-400">
-            <button onClick={() => onEdit(entry)}><Pencil size={16} /></button>
-            <button onClick={() => onDelete(entry)}><Trash2 size={16} /></button>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+// ─────────────────────────────────────────────────────
+// Helpers & constants
+// ─────────────────────────────────────────────────────
+const resetOptions: { scope: ResetScope; label: string; description: string }[] = [
+  { scope: "alimentacao", label: "Apagar alimentação", description: "Remove refeições registadas." },
+  { scope: "treinos", label: "Apagar treinos", description: "Remove planos e histórico de conclusão." },
+  { scope: "evolucao", label: "Apagar evolução", description: "Remove pesos e medidas registados." },
+  { scope: "agua_creatina", label: "Apagar água e creatina", description: "Remove hidratação e checklist diário." },
+  { scope: "tudo", label: "Apagar tudo", description: "Reinicia todo o perfil e histórico." },
+];
+
+const themeOptions: { value: AppTheme; label: string; icon: typeof Sun }[] = [
+  { value: "light", label: "Claro", icon: Sun },
+  { value: "dark", label: "Escuro", icon: Moon },
+  { value: "system", label: "Auto", icon: Monitor },
+];
+
+function syncStatusLabel(state: SyncStatus["state"]) {
+  const map: Record<string, string> = {
+    synced: "Sincronizado",
+    local: "Local",
+    pending: "Pendente",
+    syncing: "Salvando…",
+    error: "Erro",
+  };
+  return map[state] ?? state;
 }
 
-function WeightModal({
-  entry,
-  onClose,
-  onSave
-}: {
-  entry: WeightEntry | null;
-  onClose: () => void;
-  onSave: (entry: Omit<WeightEntry, "id">) => void;
-}) {
-  const [weightText, setWeightText] = useState("");
-  useEffect(() => {
-    setWeightText(entry?.weight ? String(entry.weight) : "");
-  }, [entry]);
-  if (!entry) return null;
-  return (
-    <Modal open title="Peso semanal" onClose={onClose}>
-      <form className="space-y-3" onSubmit={(event: FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
-        const form = new FormData(event.currentTarget);
-        if (!weightText) {
-          window.alert("Peso pendente.");
-          return;
-        }
-        onSave({ date: String(form.get("date")), weight: Number(weightText) });
-      }}>
-        <label className="field-label">Data<input type="date" name="date" required defaultValue={entry.date} /></label>
-        <label className="field-label">Peso (kg)
-          <input
-            type="number"
-            name="weight"
-            min="1"
-            step="0.1"
-            required
-            value={weightText}
-            placeholder="Ex: 74"
-            onChange={(event) => setWeightText(event.target.value.replace(/^0+(?=\d)/, ""))}
-          />
-        </label>
-        <button className="btn-primary w-full py-3" type="submit">Guardar peso</button>
-      </form>
-    </Modal>
-  );
+function syncStatusStyle(state: SyncStatus["state"]) {
+  if (state === "synced") return "bg-green-100 text-green-700";
+  if (state === "error") return "bg-red-100 text-red-700";
+  if (state === "syncing") return "bg-blue-100 text-blue-700";
+  return "bg-slate-100 text-slate-600";
 }
 
-function MeasurementModal({
-  entry,
-  focusKey,
-  onClose,
-  onSave
-}: {
-  entry: MeasurementEntry | null;
-  focusKey: keyof Measurements | null;
-  onClose: () => void;
-  onSave: (entry: Omit<MeasurementEntry, "id">) => void;
-}) {
-  const [form, setForm] = useState<Measurements>(entry ?? emptyMeasurements);
-  useEffect(() => setForm(entry ?? emptyMeasurements), [entry]);
-  if (!entry) return null;
-  return (
-    <Modal open title="Medidas mensais" onClose={onClose}>
-      <form className="space-y-3" onSubmit={(event: FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
-        const fields = new FormData(event.currentTarget);
-        onSave({ date: String(fields.get("date")), ...form });
-      }}>
-        <label className="field-label">Data<input type="date" name="date" required defaultValue={entry.date} /></label>
-        <div className="grid grid-cols-2 gap-3">
-          {measurementFields.map(({ key, label }) => (
-            <NumberField key={key} label={label} step="0.1" optional placeholder="Opcional" autoFocus={focusKey === key} value={form[key]} onChange={(value) => setForm({ ...form, [key]: value })} />
-          ))}
-        </div>
-        <button className="btn-primary w-full py-3" type="submit">Guardar medidas</button>
-      </form>
-    </Modal>
-  );
+function formatSyncDate(value: string | null) {
+  if (!value) return "—";
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+type MissingTarget = "pesoDesejado" | "cintura" | "gordura" | "biotipo" | "medidas";
+
+function bodyCompletion(profile: Profile, measurements?: MeasurementEntry) {
+  const checks = [
+    { ok: profile.pesoDesejado > 0, label: "Peso desejado pendente", target: "pesoDesejado" as const },
+    { ok: Boolean(measurements?.cintura), label: "Cintura pendente", target: "cintura" as const },
+    { ok: Boolean(measurements?.gordura), label: "% de gordura pendente", target: "gordura" as const },
+    { ok: Boolean(profile.biotipo && profile.biotipo !== "nao_sei"), label: "Biotipo pendente", target: "biotipo" as const },
+    {
+      ok: Boolean(measurements && measurementFields.every(({ key }) => measurements[key] > 0)),
+      label: "Medidas mensais pendentes",
+      target: "medidas" as const,
+    },
+  ];
+  const base = 6;
+  const done = base + checks.filter((c) => c.ok).length;
+  return {
+    percent: Math.round((done / (base + checks.length)) * 100),
+    missing: checks.filter((c) => !c.ok).map((c) => ({ label: c.label, target: c.target })),
+  };
 }

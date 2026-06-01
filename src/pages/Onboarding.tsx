@@ -1,5 +1,14 @@
-import { Activity, ArrowRight, Cloud, LogIn, Sparkles } from "lucide-react";
-import { useEffect, useState, type FormEvent } from "react";
+import {
+  Activity,
+  ArrowLeft,
+  ArrowRight,
+  CheckCircle2,
+  Cloud,
+  LogIn,
+  Ruler,
+  Sparkles,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 import { todayISO } from "../lib/date";
 import { emptyMeasurements } from "../data/seed";
 import { GoalsExplanation } from "../components/GoalsExplanation";
@@ -10,6 +19,7 @@ import type { AuthSyncResult, useFitnessData } from "../hooks/useFitnessData";
 import type { FitnessData, Measurements, Profile, Somatotype, SyncStatus } from "../types";
 
 type Actions = ReturnType<typeof useFitnessData>["actions"];
+type Step = 0 | 1 | 2;
 
 interface Props {
   onFinish: (profile: Profile, measurements: Measurements) => void;
@@ -19,21 +29,33 @@ interface Props {
   syncStatus: SyncStatus;
 }
 
-const objectiveLabels = {
-  manter: "Manter peso",
-  ganho_controlado: "Ganho controlado",
-  perda_controlada: "Perda controlada",
-  recomposicao: "Recomposição corporal"
-};
+const objectiveOptions: { value: Profile["objetivo"]; label: string; desc: string }[] = [
+  { value: "manter", label: "Manter peso", desc: "Equilibrar calorias" },
+  { value: "ganho_controlado", label: "Ganho muscular", desc: "Superávit controlado" },
+  { value: "perda_controlada", label: "Perda de peso", desc: "Déficit controlado" },
+  { value: "recomposicao", label: "Recomposição", desc: "Perder gordura e ganhar músculo" },
+];
 
+const activityOptions: { value: Profile["atividade"]; label: string; desc: string }[] = [
+  { value: "sedentario", label: "Sedentário", desc: "Pouco ou nenhum exercício" },
+  { value: "leve", label: "Leve", desc: "Exercício 1–3x por semana" },
+  { value: "moderado", label: "Moderado", desc: "Exercício 3–5x por semana" },
+  { value: "intenso", label: "Intenso", desc: "Exercício 6–7x por semana" },
+  { value: "muito_intenso", label: "Muito intenso", desc: "Treino duas vezes ao dia" },
+];
+
+// ─────────────────────────────────────────────────────
+// Main Onboarding wizard
+// ─────────────────────────────────────────────────────
 export function Onboarding({ onFinish, onDemo, data, actions, syncStatus }: Props) {
+  const [step, setStep] = useState<Step>(0);
   const [profile, setProfile] = useFormProfile();
   const [measurements, setMeasurements] = useState<Measurements>(emptyMeasurements);
   const [authOpen, setAuthOpen] = useState(false);
   const [choiceOpen, setChoiceOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  function submit(event: FormEvent) {
-    event.preventDefault();
+
+  function finish() {
     if (!profile.idade || !profile.altura || !profile.pesoAtual) {
       window.alert("Preencha idade, altura e peso atual para calcular as metas iniciais.");
       return;
@@ -42,100 +64,245 @@ export function Onboarding({ onFinish, onDemo, data, actions, syncStatus }: Prop
   }
 
   return (
-    <main className="min-h-dvh bg-app pb-8">
-      <div className="mx-auto max-w-md px-5 pt-[max(30px,env(safe-area-inset-top))]">
-        <div className="mb-7">
-          <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-white shadow-primary">
-            <Activity size={25} />
+    <main className="min-h-dvh bg-app pb-10">
+      <div className="mx-auto max-w-md px-5 pt-[max(28px,env(safe-area-inset-top))]">
+
+        {/* Header */}
+        <div className="mb-7 flex items-center gap-4">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary text-white shadow-primary">
+            <Activity size={28} />
           </div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-primary">TRAVIZANI FITNESS</p>
-          <h1 className="text-3xl font-semibold tracking-tight text-slate-950">Seu acompanhamento começa aqui.</h1>
-          <p className="mt-3 leading-6 text-slate-500">
-            Alimentação, medidas e treinos guardados apenas neste dispositivo.
-          </p>
+          <div>
+            <p className="mb-0.5 text-[11px] font-bold uppercase tracking-[0.18em] text-primary">TREINO PRO</p>
+            <h1 className="text-2xl font-bold tracking-tight text-ink">
+              {step === 0 && "Bem-vindo"}
+              {step === 1 && "Seu perfil"}
+              {step === 2 && "Medidas iniciais"}
+            </h1>
+          </div>
         </div>
 
-        <button type="button" onClick={onDemo} className="btn-secondary mb-5 flex w-full items-center justify-between">
-          <span className="flex items-center gap-2"><Sparkles size={17} /> Testar com dados de exemplo</span>
-          <ArrowRight size={17} />
-        </button>
+        {/* Progress bar */}
+        {step > 0 && (
+          <div className="mb-6 flex items-center gap-2">
+            <div className={`h-1.5 flex-1 rounded-full transition-all ${step >= 1 ? "bg-primary" : "bg-slate-200"}`} />
+            <div className={`h-1.5 flex-1 rounded-full transition-all ${step >= 2 ? "bg-primary" : "bg-slate-200"}`} />
+            <span className="ml-1 shrink-0 text-xs font-semibold text-muted">Passo {step} de 2</span>
+          </div>
+        )}
 
-        <section className="form-card mb-5">
-          <div className="flex items-start gap-3">
-            <Cloud size={20} className="mt-1 text-primary" />
-            <div>
-              <h2 className="form-title">Já tem conta?</h2>
-              <p className="mb-3 text-sm leading-6 text-muted">
-                Entre para carregar os dados salvos na nuvem antes de criar um novo perfil.
-              </p>
-              <p className="mb-3 text-xs leading-5 text-muted">{syncStatus.message}</p>
-              <button className="btn-secondary w-full justify-center py-3" type="button" onClick={() => setAuthOpen(true)} disabled={!syncStatus.configured}>
+        {/* ── Step 0: Welcome ── */}
+        {step === 0 && (
+          <div className="space-y-4">
+            <p className="text-base leading-7 text-muted">
+              Registe treinos, alimentação e evolução corporal — tudo guardado com segurança neste dispositivo.
+            </p>
+
+            {/* Account card */}
+            <div className="form-card">
+              <div className="mb-3 flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-light">
+                  <Cloud size={18} className="text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-ink">Já tem conta?</p>
+                  <p className="text-xs text-muted">Entre para restaurar dados da nuvem</p>
+                </div>
+              </div>
+              {syncStatus.message && (
+                <p className="mb-3 text-xs leading-5 text-muted">{syncStatus.message}</p>
+              )}
+              <button
+                className="btn-secondary w-full justify-center py-3 disabled:opacity-40"
+                type="button"
+                onClick={() => setAuthOpen(true)}
+                disabled={!syncStatus.configured}
+              >
                 <LogIn size={17} /> Entrar / Criar conta
               </button>
             </div>
+
+            {/* Demo */}
+            <button
+              type="button"
+              onClick={onDemo}
+              className="btn-secondary flex w-full items-center justify-between py-3.5"
+            >
+              <span className="flex items-center gap-2 text-muted">
+                <Sparkles size={17} className="text-primary" /> Ver app com dados de exemplo
+              </span>
+              <ArrowRight size={17} className="text-primary" />
+            </button>
+
+            {/* Start */}
+            <button
+              type="button"
+              className="btn-primary w-full py-4 text-base font-bold"
+              onClick={() => setStep(1)}
+            >
+              Criar meu perfil <ArrowRight size={19} />
+            </button>
           </div>
-        </section>
+        )}
 
-        <form className="space-y-4" onSubmit={submit}>
-          <section className="form-card">
-            <h2 className="form-title">Perfil inicial</h2>
-            <p className="mb-3 rounded-2xl bg-primary-light p-3 text-sm leading-5 text-muted">
-              Pode completar estes dados depois. Quanto mais informação adicionar, mais completo será o resumo corporal.
-            </p>
-            <label className="field-label">Nome <span className="font-normal text-slate-400">(opcional)</span>
-              <input value={profile.nome} onChange={(event) => setProfile({ ...profile, nome: event.target.value })} placeholder="Pode preencher depois" />
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              <NumberField label="Idade" value={profile.idade} placeholder="Ex: 26" onChange={(idade) => setProfile({ ...profile, idade })} />
-              <label className="field-label">Sexo
-                <select value={profile.sexo} onChange={(event) => setProfile({ ...profile, sexo: event.target.value as Profile["sexo"] })}>
-                  <option value="masculino">Masculino</option>
-                  <option value="feminino">Feminino</option>
-                </select>
+        {/* ── Step 1: Profile ── */}
+        {step === 1 && (
+          <div className="space-y-4">
+            {/* Basic info */}
+            <div className="form-card space-y-3">
+              <p className="text-sm font-bold text-ink">Dados básicos</p>
+              <label className="field-label">
+                Nome <span className="font-normal text-slate-400">(opcional)</span>
+                <input
+                  value={profile.nome}
+                  onChange={(e) => setProfile({ ...profile, nome: e.target.value })}
+                  placeholder="Como posso te chamar?"
+                />
               </label>
-              <NumberField label="Altura (cm)" value={profile.altura} placeholder="Ex: 170" onChange={(altura) => setProfile({ ...profile, altura })} />
-              <NumberField label="Peso atual (kg)" value={profile.pesoAtual} step="0.1" placeholder="Ex: 74" onChange={(pesoAtual) => setProfile({ ...profile, pesoAtual })} />
-              <NumberField label="Peso desejado" value={profile.pesoDesejado} step="0.1" optional placeholder="Ex: 78" onChange={(pesoDesejado) => setProfile({ ...profile, pesoDesejado })} />
-              <NumberField label="Treinos/semana" value={profile.frequenciaTreino} max={7} onChange={(frequenciaTreino) => setProfile({ ...profile, frequenciaTreino })} />
-            </div>
-            <label className="field-label">Objetivo principal
-              <select value={profile.objetivo} onChange={(event) => setProfile({ ...profile, objetivo: event.target.value as Profile["objetivo"] })}>
-                {Object.entries(objectiveLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}
-              </select>
-            </label>
-            <label className="field-label">Nível de atividade
-              <select value={profile.atividade} onChange={(event) => setProfile({ ...profile, atividade: event.target.value as Profile["atividade"] })}>
-                <option value="sedentario">Sedentário</option>
-                <option value="leve">Leve</option>
-                <option value="moderado">Moderado</option>
-                <option value="intenso">Intenso</option>
-                <option value="muito_intenso">Muito intenso</option>
-              </select>
-            </label>
-            <SomatotypePicker value={profile.biotipo ?? "nao_sei"} onChange={(biotipo) => setProfile({ ...profile, biotipo })} />
-          </section>
-
-          <section className="form-card">
-            <h2 className="form-title">Medidas atuais <span className="font-normal text-slate-400">(cm)</span></h2>
-            <div className="grid grid-cols-2 gap-3">
-              {measurementFields.map(({ key, label }) => (
+              <div className="grid grid-cols-2 gap-3">
                 <NumberField
-                  key={key}
-                  label={label}
-                  value={measurements[key]}
+                  label="Idade"
+                  value={profile.idade}
+                  placeholder="Ex: 26"
+                  onChange={(idade) => setProfile({ ...profile, idade })}
+                />
+                <label className="field-label">
+                  Sexo
+                  <select
+                    value={profile.sexo}
+                    onChange={(e) => setProfile({ ...profile, sexo: e.target.value as Profile["sexo"] })}
+                  >
+                    <option value="masculino">Masculino</option>
+                    <option value="feminino">Feminino</option>
+                  </select>
+                </label>
+                <NumberField
+                  label="Altura (cm)"
+                  value={profile.altura}
+                  placeholder="Ex: 175"
+                  onChange={(altura) => setProfile({ ...profile, altura })}
+                />
+                <NumberField
+                  label="Peso atual (kg)"
+                  value={profile.pesoAtual}
+                  step="0.1"
+                  placeholder="Ex: 74"
+                  onChange={(pesoAtual) => setProfile({ ...profile, pesoAtual })}
+                />
+                <NumberField
+                  label="Peso desejado"
+                  value={profile.pesoDesejado}
                   step="0.1"
                   optional
                   placeholder="Opcional"
-                  onChange={(value) => setMeasurements({ ...measurements, [key]: value })}
+                  onChange={(pesoDesejado) => setProfile({ ...profile, pesoDesejado })}
                 />
+                <NumberField
+                  label="Treinos/semana"
+                  value={profile.frequenciaTreino}
+                  max={7}
+                  onChange={(frequenciaTreino) => setProfile({ ...profile, frequenciaTreino })}
+                />
+              </div>
+            </div>
+
+            {/* Objective */}
+            <div className="form-card space-y-3">
+              <p className="text-sm font-bold text-ink">Objetivo principal</p>
+              <div className="grid grid-cols-2 gap-2">
+                {objectiveOptions.map(({ value, label, desc }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={`rounded-2xl border p-3 text-left transition-all ${profile.objetivo === value ? "border-primary bg-primary-light" : "border-outline bg-white"}`}
+                    onClick={() => setProfile({ ...profile, objetivo: value })}
+                  >
+                    <span className={`block text-sm font-semibold ${profile.objetivo === value ? "text-primary" : "text-ink"}`}>
+                      {label}
+                    </span>
+                    <span className="mt-0.5 block text-[11px] leading-4 text-muted">{desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Activity level */}
+            <div className="form-card space-y-2">
+              <p className="mb-1 text-sm font-bold text-ink">Nível de atividade</p>
+              {activityOptions.map(({ value, label, desc }) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`flex w-full items-center justify-between rounded-2xl border px-3.5 py-3 text-left transition-all ${profile.atividade === value ? "border-primary bg-primary-light" : "border-outline bg-white"}`}
+                  onClick={() => setProfile({ ...profile, atividade: value })}
+                >
+                  <span>
+                    <span className={`block text-sm font-semibold ${profile.atividade === value ? "text-primary" : "text-ink"}`}>
+                      {label}
+                    </span>
+                    <span className="text-xs text-muted">{desc}</span>
+                  </span>
+                  {profile.atividade === value && <CheckCircle2 size={18} className="shrink-0 text-primary" />}
+                </button>
               ))}
             </div>
-          </section>
 
-          <GoalsExplanation profile={profile} measurements={measurements} />
-          <button className="btn-primary w-full py-4" type="submit">Criar meu perfil</button>
-        </form>
+            {/* Somatotype */}
+            <CompactSomatotypePicker
+              value={profile.biotipo ?? "nao_sei"}
+              onChange={(biotipo) => setProfile({ ...profile, biotipo })}
+            />
+
+            <div className="grid grid-cols-2 gap-3 pb-2">
+              <button type="button" className="btn-secondary justify-center py-3.5" onClick={() => setStep(0)}>
+                <ArrowLeft size={17} /> Voltar
+              </button>
+              <button type="button" className="btn-primary py-3.5" onClick={() => setStep(2)}>
+                Próximo <ArrowRight size={17} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Step 2: Measurements ── */}
+        {step === 2 && (
+          <div className="space-y-4">
+            <div className="form-card space-y-4">
+              <div className="flex items-start gap-3 rounded-2xl bg-primary-light p-3">
+                <Ruler size={18} className="mt-0.5 shrink-0 text-primary" />
+                <p className="text-sm leading-5 text-primary">
+                  Todos os campos são opcionais — pode preencher depois. Quanto mais dados, mais preciso o acompanhamento.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {measurementFields.map(({ key, label }) => (
+                  <NumberField
+                    key={key}
+                    label={label}
+                    value={measurements[key]}
+                    step="0.1"
+                    optional
+                    placeholder="Opcional"
+                    onChange={(value) => setMeasurements({ ...measurements, [key]: value })}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <GoalsExplanation profile={profile} measurements={measurements} />
+
+            <div className="grid grid-cols-2 gap-3 pb-2">
+              <button type="button" className="btn-secondary justify-center py-3.5" onClick={() => setStep(1)}>
+                <ArrowLeft size={17} /> Voltar
+              </button>
+              <button type="button" className="btn-primary py-3.5 font-bold" onClick={finish}>
+                <CheckCircle2 size={17} /> Criar perfil
+              </button>
+            </div>
+          </div>
+        )}
       </div>
+
       <OnboardingAuthModal
         open={authOpen}
         onClose={() => setAuthOpen(false)}
@@ -153,21 +320,13 @@ export function Onboarding({ onFinish, onDemo, data, actions, syncStatus }: Prop
         onClose={() => setChoiceOpen(false)}
         onUseCloud={async () => {
           setBusy(true);
-          try {
-            await actions.loadFromCloud();
-            setChoiceOpen(false);
-          } finally {
-            setBusy(false);
-          }
+          try { await actions.loadFromCloud(); setChoiceOpen(false); }
+          finally { setBusy(false); }
         }}
         onUpload={async () => {
           setBusy(true);
-          try {
-            await actions.uploadToCloud();
-            setChoiceOpen(false);
-          } finally {
-            setBusy(false);
-          }
+          try { await actions.uploadToCloud(); setChoiceOpen(false); }
+          finally { setBusy(false); }
         }}
         onExport={() => exportBackup(data)}
       />
@@ -175,10 +334,11 @@ export function Onboarding({ onFinish, onDemo, data, actions, syncStatus }: Prop
   );
 }
 
+// ─────────────────────────────────────────────────────
+// Auth modal
+// ─────────────────────────────────────────────────────
 function OnboardingAuthModal({
-  open,
-  onClose,
-  onDone
+  open, onClose, onDone,
 }: {
   open: boolean;
   onClose: () => void;
@@ -189,38 +349,56 @@ function OnboardingAuthModal({
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   if (!open) return null;
+
   return (
-    <Modal open title="Conta Supabase" onClose={onClose}>
-      <form className="space-y-3" onSubmit={async (event) => {
-        event.preventDefault();
-        setBusy(true);
-        try {
-          await onDone(mode, email, password);
-        } catch (error) {
-          window.alert(error instanceof Error ? error.message : "Não foi possível autenticar.");
-        } finally {
-          setBusy(false);
-        }
-      }}>
-        <div className="grid grid-cols-2 gap-2">
-          <button type="button" className={`toggle-button ${mode === "signin" ? "selected" : ""}`} onClick={() => setMode("signin")}>Entrar</button>
-          <button type="button" className={`toggle-button ${mode === "signup" ? "selected" : ""}`} onClick={() => setMode("signup")}>Criar conta</button>
-        </div>
-        <label className="field-label">E-mail<input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} /></label>
-        <label className="field-label">Senha<input type="password" required minLength={6} value={password} onChange={(event) => setPassword(event.target.value)} /></label>
-        <button className="btn-primary w-full py-3" type="submit" disabled={busy}>{busy ? "Aguarde..." : "Continuar"}</button>
+    <Modal open title="Entrar no TREINO PRO" onClose={onClose}>
+      <div className="mb-4 grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          className={`toggle-button ${mode === "signin" ? "selected" : ""}`}
+          onClick={() => setMode("signin")}
+        >
+          Entrar
+        </button>
+        <button
+          type="button"
+          className={`toggle-button ${mode === "signup" ? "selected" : ""}`}
+          onClick={() => setMode("signup")}
+        >
+          Criar conta
+        </button>
+      </div>
+      <form
+        className="space-y-3"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          try { await onDone(mode, email, password); }
+          catch (err) { window.alert(err instanceof Error ? err.message : "Não foi possível autenticar."); }
+          finally { setBusy(false); }
+        }}
+      >
+        <label className="field-label">
+          E-mail
+          <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com" />
+        </label>
+        <label className="field-label">
+          Senha
+          <input type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mínimo 6 caracteres" />
+        </label>
+        <button className="btn-primary w-full py-3" type="submit" disabled={busy}>
+          {busy ? "Aguarde…" : mode === "signin" ? "Entrar" : "Criar conta"}
+        </button>
       </form>
     </Modal>
   );
 }
 
+// ─────────────────────────────────────────────────────
+// Cloud choice modal
+// ─────────────────────────────────────────────────────
 function OnboardingCloudChoiceModal({
-  open,
-  busy,
-  onClose,
-  onUpload,
-  onUseCloud,
-  onExport
+  open, busy, onClose, onUseCloud, onUpload, onExport,
 }: {
   open: boolean;
   busy: boolean;
@@ -233,14 +411,115 @@ function OnboardingCloudChoiceModal({
   return (
     <Modal open title="Sincronizar dados" onClose={onClose}>
       <p className="mb-4 text-sm leading-6 text-muted">
-        Encontramos dados neste dispositivo e/ou na nuvem. Escolha qual deseja usar.
+        Encontramos dados neste dispositivo e na nuvem. Qual deseja usar?
       </p>
       <div className="space-y-2">
-        <button className="btn-secondary w-full justify-center py-3 disabled:opacity-50" type="button" disabled={busy} onClick={onUseCloud}>Usar dados da nuvem</button>
-        <button className="btn-primary w-full py-3 disabled:opacity-50" type="button" disabled={busy} onClick={onUpload}>Enviar dados deste dispositivo</button>
-        <button className="btn-secondary w-full justify-center py-3" type="button" onClick={onExport}>Exportar backup antes</button>
+        <button className="btn-secondary w-full justify-center py-3 disabled:opacity-50" type="button" disabled={busy} onClick={onUseCloud}>
+          Usar dados da nuvem
+        </button>
+        <button className="btn-primary w-full py-3 disabled:opacity-50" type="button" disabled={busy} onClick={onUpload}>
+          Enviar dados deste dispositivo
+        </button>
+        <button className="btn-secondary w-full justify-center py-3" type="button" onClick={onExport}>
+          Exportar backup antes
+        </button>
       </div>
     </Modal>
+  );
+}
+
+// ─────────────────────────────────────────────────────
+// Compact somatotype picker
+// ─────────────────────────────────────────────────────
+function CompactSomatotypePicker({ value, onChange }: { value: Somatotype; onChange: (v: Somatotype) => void }) {
+  const options = Object.keys(SOMATOTYPE_LABELS) as Somatotype[];
+  return (
+    <div className="form-card space-y-3">
+      <p className="text-sm font-bold text-ink">Biotipo percebido <span className="font-normal text-slate-400">(opcional)</span></p>
+      <div className="grid grid-cols-2 gap-2">
+        {options.map((opt) => (
+          <button
+            key={opt}
+            type="button"
+            className={`rounded-2xl border p-3 text-left transition-all ${value === opt ? "border-primary bg-primary-light" : "border-outline bg-white"}`}
+            onClick={() => onChange(opt)}
+          >
+            <span className={`block text-sm font-semibold ${value === opt ? "text-primary" : "text-ink"}`}>
+              {SOMATOTYPE_LABELS[opt]}
+            </span>
+            <span className="mt-0.5 block text-[11px] leading-4 text-muted">{SOMATOTYPE_DESCRIPTIONS[opt]}</span>
+          </button>
+        ))}
+      </div>
+      <p className="text-[11px] leading-5 text-muted">
+        O biotipo é apenas um ajuste contextual. A base principal são peso, altura, idade, sexo e nível de atividade.
+      </p>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────
+// Exports used by ProfilePage
+// ─────────────────────────────────────────────────────
+export const measurementFields: { key: keyof Measurements; label: string }[] = [
+  { key: "cintura", label: "Cintura (cm)" },
+  { key: "abdomen", label: "Abdómen (cm)" },
+  { key: "peito", label: "Peito (cm)" },
+  { key: "braco", label: "Braço (cm)" },
+  { key: "antebraco", label: "Antebraço (cm)" },
+  { key: "coxa", label: "Coxa (cm)" },
+  { key: "panturrilha", label: "Panturrilha (cm)" },
+  { key: "gluteo", label: "Glúteo (cm)" },
+  { key: "pescoco", label: "Pescoço (cm)" },
+  { key: "gordura", label: "Gordura (%)" },
+];
+
+export function NumberField({
+  label,
+  value,
+  step = "1",
+  max,
+  optional = false,
+  placeholder,
+  onChange,
+  autoFocus = false,
+}: {
+  label: string;
+  value: number;
+  step?: string;
+  max?: number;
+  optional?: boolean;
+  placeholder?: string;
+  onChange: (value: number) => void;
+  autoFocus?: boolean;
+}) {
+  const [text, setText] = useState(value > 0 ? String(value) : "");
+  useEffect(() => { setText(value > 0 ? String(value) : ""); }, [value]);
+
+  function change(raw: string) {
+    const normalized = raw.replace(/^0+(?=\d)/, "");
+    setText(normalized);
+    if (normalized === "") { onChange(0); return; }
+    const parsed = Number(normalized);
+    if (Number.isFinite(parsed)) onChange(parsed);
+  }
+
+  return (
+    <label className="field-label">
+      {label}
+      <input
+        required={!optional}
+        type="number"
+        min="0"
+        max={max}
+        step={step}
+        value={text}
+        placeholder={placeholder ?? (optional ? "Opcional" : "Pendente")}
+        autoFocus={autoFocus}
+        onFocus={() => { if (text === "0") setText(""); }}
+        onChange={(e) => change(e.target.value)}
+      />
+    </label>
   );
 }
 
@@ -256,92 +535,6 @@ function useFormProfile() {
     objetivo: "manter",
     atividade: "moderado",
     frequenciaTreino: 3,
-    createdAt: ""
+    createdAt: "",
   });
-}
-
-export const measurementFields: { key: keyof Measurements; label: string }[] = [
-  { key: "cintura", label: "Cintura" },
-  { key: "abdomen", label: "Abdómen" },
-  { key: "peito", label: "Peito" },
-  { key: "braco", label: "Braço" },
-  { key: "antebraco", label: "Antebraço" },
-  { key: "coxa", label: "Coxa" },
-  { key: "panturrilha", label: "Panturrilha" },
-  { key: "gluteo", label: "Glúteo" },
-  { key: "pescoco", label: "Pescoço" },
-  { key: "gordura", label: "Gordura (%)" }
-];
-
-export function NumberField({
-  label,
-  value,
-  step = "1",
-  max,
-  optional = false,
-  placeholder,
-  onChange
-  , autoFocus = false
-}: {
-  label: string;
-  value: number;
-  step?: string;
-  max?: number;
-  optional?: boolean;
-  placeholder?: string;
-  onChange: (value: number) => void;
-  autoFocus?: boolean;
-}) {
-  const [text, setText] = useState(value > 0 ? String(value) : "");
-  useEffect(() => {
-    setText(value > 0 ? String(value) : "");
-  }, [value]);
-
-  function change(raw: string) {
-    const normalized = raw.replace(/^0+(?=\d)/, "");
-    setText(normalized);
-    if (normalized === "") {
-      onChange(0);
-      return;
-    }
-    const parsed = Number(normalized);
-    if (Number.isFinite(parsed)) onChange(parsed);
-  }
-
-  return (
-    <label className="field-label">{label}
-      <input
-        required={!optional}
-        type="number"
-        min="0"
-        max={max}
-        step={step}
-        value={text}
-        placeholder={placeholder ?? (optional ? "Opcional" : "Pendente")}
-        autoFocus={autoFocus}
-        onFocus={() => {
-          if (text === "0") setText("");
-        }}
-        onChange={(event) => change(event.target.value)}
-      />
-    </label>
-  );
-}
-
-function SomatotypePicker({ value, onChange }: { value: Somatotype; onChange: (value: Somatotype) => void }) {
-  const options = Object.keys(SOMATOTYPE_LABELS) as Somatotype[];
-  return (
-    <div className="space-y-2">
-      <p className="field-label">Biotipo percebido</p>
-      {options.map((option) => (
-        <button key={option} type="button" className={`w-full rounded-2xl border p-3 text-left ${value === option ? "border-primary bg-primary-light" : "border-outline bg-white"}`} onClick={() => onChange(option)}>
-          <span className="block text-sm font-semibold text-ink">{SOMATOTYPE_LABELS[option]}</span>
-          <span className="mt-1 block text-xs leading-5 text-muted">{SOMATOTYPE_DESCRIPTIONS[option]}</span>
-        </button>
-      ))}
-      <p className="rounded-2xl bg-slate-50 p-3 text-xs leading-5 text-muted">
-        O biotipo é usado apenas como ajuste contextual. A base principal dos cálculos continua sendo peso, altura, idade, sexo, atividade, objetivo e evolução real.
-      </p>
-    </div>
-  );
 }

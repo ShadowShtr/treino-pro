@@ -1,19 +1,13 @@
 import { useEffect, useState, type ComponentType } from "react";
 import {
   Activity,
-  Apple,
-  Beef,
-  Bell,
-  CalendarCheck,
   Droplets,
-  Dumbbell,
-  Flame,
   Info,
   Pencil,
   Pill,
   Ruler,
   Scale,
-  Wheat
+  UtensilsCrossed
 } from "lucide-react";
 import { Card, Modal, ProgressBar, SectionTitle } from "../components/Ui";
 import { completedMeals, macrosForLog } from "../lib/calculations";
@@ -27,30 +21,51 @@ type IconType = ComponentType<{ size?: number; className?: string }>;
 
 export function HomePage({ data, actions, setTab }: { data: FitnessData; actions: Actions; setTab: (tab: TabId) => void }) {
   const [showFormula, setShowFormula] = useState(false);
-  const [mealModal, setMealModal] = useState(false);
-  const [waterModal, setWaterModal] = useState(false);
   const [weightModal, setWeightModal] = useState<WeightEntry | null>(null);
   const profile = data.profile!;
   const today = todayISO();
   const log = data.logs[today];
   const targets = calculateTargets(profile);
   const day = weekdayForDate(today);
-  const weekday = weekdays.find((entry) => entry.id === day)?.label;
+  const weekday = weekdays.find((entry) => entry.id === day);
   const workout = data.workouts.find((entry) => entry.day === day)!;
   const trained = data.completedWorkouts.some((entry) => entry.date === today);
   const waterTarget = calculateWaterTarget(profile, trained);
   const lastWeight = [...data.weights].sort((a, b) => b.date.localeCompare(a.date))[0];
   const lastMeasures = [...data.measurements].sort((a, b) => b.date.localeCompare(a.date))[0];
   const mealCount = completedMeals(log);
-  const calories = Math.round(macrosForLog(log).calories);
-  const cardioCalories = data.cardioEntries.filter((entry) => entry.date === today).reduce((total, entry) => total + entry.calories, 0);
+  const macros = macrosForLog(log);
+  const calories = Math.round(macros.calories);
+  const protein = Math.round(macros.protein);
+  const carbs = Math.round(macros.carbs);
+  const fats = Math.round(macros.fats);
+  const cardioCalories = data.cardioEntries
+    .filter((entry) => entry.date === today)
+    .reduce((total, entry) => total + entry.calories, 0);
   const weightDue = daysSince(lastWeight?.date) >= 7;
   const measuresDue = daysSince(lastMeasures?.date) >= 30;
-  const streak = data.streak;
   const weeklyGoals = calculateWeeklyGoals(data);
 
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Bom dia" : hour < 18 ? "Boa tarde" : "Boa noite";
+  const todayFormatted = new Date(`${today}T12:00:00`).toLocaleDateString("pt-BR", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short"
+  });
+
+  // SVG ring dimensions
+  const ringR = 52;
+  const ringStroke = 10;
+  const ringCircumference = 2 * Math.PI * ringR;
+  const caloriePercent = targets.calories > 0 ? Math.min(1, calories / targets.calories) : 0;
+  const ringOffset = ringCircumference * (1 - caloriePercent);
+
+  // Weekly water avg in liters
+  const avgWaterL = weeklyGoals.avgWater / 1000;
+
   function startWorkout() {
-    if (!workout.exercises.length) {
+    if (!workout?.exercises.length) {
       window.alert("Nenhum treino definido para hoje.");
       return;
     }
@@ -59,178 +74,317 @@ export function HomePage({ data, actions, setTab }: { data: FitnessData; actions
 
   return (
     <>
+      {/* Header */}
       <header className="brand-header mb-5 flex items-center justify-between px-4 py-4">
         <div className="flex items-center gap-3">
           <div className="rounded-xl bg-white/17 p-2">
             <Activity size={24} />
           </div>
           <div className="leading-none">
-            <p className="text-lg font-extrabold tracking-[0.12em]">TRAVIZANI</p>
-            <p className="mt-1 text-xs font-semibold tracking-[0.34em] text-white/85">FITNESS</p>
+            <p className="text-lg font-extrabold tracking-[0.12em]">TREINO PRO</p>
           </div>
         </div>
-        <button
-          type="button"
-          aria-label="Ver lembretes"
-          className="rounded-xl bg-white/14 p-2.5"
-          onClick={() => document.getElementById("lembretes-hoje")?.scrollIntoView({ behavior: "smooth" })}
-        >
-          <Bell size={20} />
-        </button>
+        <div className="text-right">
+          <p className="text-sm font-semibold text-white/90">{greeting}, {profile.nome}!</p>
+          <p className="mt-0.5 text-xs text-white/65 capitalize">{todayFormatted}</p>
+        </div>
       </header>
 
-      <Card className="mb-4 strava-card">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <span className="badge-primary">Hoje</span>
-            <p className="mt-3 text-sm font-medium text-muted">Calorias consumidas</p>
-            <h1 className="mt-1 text-4xl font-extrabold tabular-nums text-ink">{calories}</h1>
-            <p className="text-sm text-muted">/ {targets.calories} kcal</p>
-          </div>
-          <Flame className="text-primary" size={34} />
-        </div>
-        <ProgressBar value={calories} target={targets.calories} />
-      </Card>
-
+      {/* Hero card — calorie ring + macro bars */}
       <Card className="mb-4">
-        <SectionTitle>Comparativo do dia</SectionTitle>
-        <div className="grid grid-cols-2 gap-2">
-          <Calculation label="Consumo alimentar" value={`${calories} kcal`} />
-          <Calculation label="Cardio" value={`-${cardioCalories} kcal`} />
-          <Calculation label="Saldo parcial" value={`${calories - cardioCalories} kcal`} accent />
-          <Calculation label="Meta alimentar" value={`${targets.calories} kcal`} />
+        <div className="flex items-center gap-4">
+          {/* SVG Ring */}
+          <div className="relative flex-shrink-0">
+            <svg
+              width={ringR * 2 + ringStroke}
+              height={ringR * 2 + ringStroke}
+              viewBox={`0 0 ${ringR * 2 + ringStroke} ${ringR * 2 + ringStroke}`}
+            >
+              <circle
+                cx={ringR + ringStroke / 2}
+                cy={ringR + ringStroke / 2}
+                r={ringR}
+                fill="none"
+                stroke="#f1f5f9"
+                strokeWidth={ringStroke}
+              />
+              <circle
+                cx={ringR + ringStroke / 2}
+                cy={ringR + ringStroke / 2}
+                r={ringR}
+                fill="none"
+                stroke="#fc4c02"
+                strokeWidth={ringStroke}
+                strokeLinecap="round"
+                strokeDasharray={ringCircumference}
+                strokeDashoffset={ringOffset}
+                transform={`rotate(-90 ${ringR + ringStroke / 2} ${ringR + ringStroke / 2})`}
+                style={{ transition: "stroke-dashoffset 0.5s ease" }}
+              />
+              <text
+                x="50%"
+                y="50%"
+                dominantBaseline="middle"
+                textAnchor="middle"
+                className="fill-ink"
+                style={{ fontSize: 17, fontWeight: 800 }}
+              >
+                {calories}
+              </text>
+              <text
+                x="50%"
+                y="62%"
+                dominantBaseline="middle"
+                textAnchor="middle"
+                style={{ fontSize: 9, fill: "#94a3b8" }}
+              >
+                kcal
+              </text>
+            </svg>
+          </div>
+
+          {/* Macro bars */}
+          <div className="flex-1 space-y-2.5">
+            <MacroBar label="Proteína" value={protein} target={targets.protein} unit="g" color="bg-blue-500" />
+            <MacroBar label="Carbs" value={carbs} target={targets.carbs} unit="g" color="bg-amber-500" />
+            <MacroBar label="Gordura" value={fats} target={targets.fats} unit="g" color="bg-rose-400" />
+          </div>
         </div>
-        <p className="mt-3 text-xs leading-5 text-muted">O saldo é apenas comparativo. Não substitui avaliação profissional nem obriga a comer mais.</p>
+
+        {/* Below ring info */}
+        <div className="mt-3 flex items-center gap-3">
+          <p className="text-xs text-muted">Meta: {targets.calories} kcal</p>
+          {cardioCalories > 0 && (
+            <p className="text-xs font-semibold text-success">-{Math.round(cardioCalories)} kcal cardio</p>
+          )}
+        </div>
       </Card>
 
+      {/* Water card */}
+      <Card className="mb-4">
+        <div className="mb-2 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Droplets size={18} className="text-primary" />
+            <span className="text-sm font-semibold text-ink">
+              {liters(log?.waterMl ?? 0)} / {liters(waterTarget)} L
+            </span>
+          </div>
+        </div>
+        <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
+          <div
+            className="h-full rounded-full bg-primary"
+            style={{ width: `${Math.min(100, waterTarget > 0 ? ((log?.waterMl ?? 0) / waterTarget) * 100 : 0)}%`, transition: "width 0.4s ease" }}
+          />
+        </div>
+        <div className="mt-3 grid grid-cols-4 gap-2">
+          {[250, 500, 750].map((amount) => (
+            <button
+              key={amount}
+              type="button"
+              className="btn-secondary justify-center px-1 text-xs"
+              onClick={() => actions.addWater(today, amount)}
+            >
+              +{amount}ml
+            </button>
+          ))}
+          <button
+            type="button"
+            className="btn-secondary justify-center px-1 text-xs"
+            onClick={() => actions.addWater(today, -(log?.waterMl ?? 0))}
+          >
+            Zerar
+          </button>
+        </div>
+      </Card>
+
+      {/* Quick action tiles row 1: Creatina + Peso */}
       <div className="mb-4 grid grid-cols-2 gap-3">
-        <ProgressCard icon={Flame} label="Calorias hoje" value={`${calories} / ${targets.calories} kcal`} progress={calories} target={targets.calories} />
-        <ProgressCard icon={Droplets} label="Água" value={`${liters(log?.waterMl ?? 0)} / ${liters(waterTarget)} L`} progress={log?.waterMl ?? 0} target={waterTarget} />
-        <ProgressCard icon={Dumbbell} label="Treino do dia" value={workout.name || "Descanso"} progress={trained ? 1 : 0} target={1} badge={trained ? "Concluído" : workout.exercises.length ? "Pendente" : "Hoje"} />
-        <ProgressCard icon={CalendarCheck} label="Sequência atual" value={`${streak.current} dias`} progress={streak.current} target={Math.max(streak.best, 1)} badge={`Melhor ${streak.best}`} />
-        <ProgressCard icon={Scale} label="Peso atual" value={`${lastWeight?.weight ?? profile.pesoAtual} kg`} progress={weightDue ? 0 : 1} target={1} badge={weightDue ? "Pendente" : "Meta"} />
+        <button
+          type="button"
+          className="quick-action"
+          onClick={() => actions.setCreatine(today, log?.creatine !== true)}
+        >
+          <Pill size={22} className={log?.creatine === true ? "text-success" : "text-primary"} />
+          <span className="font-semibold text-ink">Creatina</span>
+          <span className={`text-xs ${log?.creatine === true ? "text-success" : "text-muted"}`}>
+            {log?.creatine === true ? "Tomada ✓" : "Marcar"}
+          </span>
+        </button>
+        <button
+          type="button"
+          className="quick-action"
+          onClick={() => setWeightModal({ id: "", date: today, weight: lastWeight?.weight ?? profile.pesoAtual })}
+        >
+          <Scale size={22} className="text-primary" />
+          <span className="font-semibold text-ink">Peso</span>
+          <span className="text-xs text-muted">
+            {lastWeight ? `${lastWeight.weight} kg` : "Registar"}
+          </span>
+        </button>
       </div>
 
-      <SectionTitle>Ações rápidas</SectionTitle>
+      {/* Today's workout card */}
+      {workout && (
+        <Card className="mb-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+                {weekday?.label ?? "Hoje"}
+              </p>
+              <p className="mt-1 text-base font-bold text-ink">{workout.name || "Descanso"}</p>
+              {workout.exercises.length > 0 && (
+                <p className="mt-0.5 text-xs text-muted">{workout.exercises.length} exercícios</p>
+              )}
+              {workout.exercises.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {workout.exercises.slice(0, 4).map((ex) => (
+                    <span key={ex.id} className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-muted">
+                      {ex.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+            {workout.exercises.length > 0 && (
+              <button
+                type="button"
+                className={`flex-shrink-0 rounded-2xl px-4 py-2 text-sm font-semibold text-white ${trained ? "bg-success" : "btn-primary"}`}
+                onClick={startWorkout}
+              >
+                {trained ? "✓ Feito" : "Iniciar"}
+              </button>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* Quick action tiles row 2: Alimentação + Cardio */}
       <div className="mb-4 grid grid-cols-2 gap-3">
-        <QuickAction icon={Apple} label="Adicionar refeição" onClick={() => setMealModal(true)} />
-        <QuickAction icon={Droplets} label="Adicionar água" onClick={() => setWaterModal(true)} />
-        <QuickAction icon={Pill} label="Marcar creatina" onClick={() => actions.setCreatine(today, log?.creatine !== true)} active={log?.creatine === true} />
-        <QuickAction icon={Dumbbell} label="Iniciar treino" onClick={startWorkout} />
-        <QuickAction icon={Scale} label="Atualizar peso" onClick={() => setWeightModal({ id: "", date: today, weight: profile.pesoAtual })} />
+        <button
+          type="button"
+          className="quick-action"
+          onClick={() => setTab("food")}
+        >
+          <UtensilsCrossed size={22} className="text-primary" />
+          <span className="font-semibold text-ink">Alimentação</span>
+          <span className="text-xs text-muted">{mealCount} de 3 refeições</span>
+        </button>
+        <button
+          type="button"
+          className="quick-action"
+          onClick={() => setTab("cardio")}
+        >
+          <Activity size={22} className="text-primary" />
+          <span className="font-semibold text-ink">Cardio</span>
+          <span className={`text-xs ${cardioCalories > 0 ? "text-success" : "text-muted"}`}>
+            {cardioCalories > 0 ? `-${Math.round(cardioCalories)} kcal` : "Registar"}
+          </span>
+        </button>
       </div>
 
+      {/* Esta semana section */}
+      <SectionTitle>Esta semana</SectionTitle>
+      <div className="mb-4 grid grid-cols-2 gap-3">
+        <WeekCard label="Treinos" value={`${weeklyGoals.workouts}/5`} progress={weeklyGoals.workouts} target={5} />
+        <WeekCard label="Alimentação" value={`${weeklyGoals.meals}/7 dias`} progress={weeklyGoals.meals} target={7} />
+        <WeekCard label="Creatina" value={`${weeklyGoals.creatine}/7`} progress={weeklyGoals.creatine} target={7} />
+        <WeekCard label="Água média" value={`${liters(weeklyGoals.avgWater)} L`} progress={avgWaterL} target={waterTarget / 1000} />
+      </div>
+
+      {/* Meta estimada card */}
       <Card className="mb-4">
         <SectionTitle
           aside={
-            <button type="button" aria-label="Explicação dos cálculos" className="icon-action h-9 min-w-9" onClick={() => setShowFormula(true)}>
+            <button
+              type="button"
+              aria-label="Explicação dos cálculos"
+              className="icon-action h-9 min-w-9"
+              onClick={() => setShowFormula(true)}
+            >
               <Info size={17} />
             </button>
           }
         >
           Meta estimada
         </SectionTitle>
-        <div className="grid grid-cols-3 gap-2">
-          <Calculation label="TMB" value={`${targets.bmr} kcal`} />
-          <Calculation label="Gasto diário" value={`${targets.tdee} kcal`} />
-          <Calculation label="Meta diária" value={`${targets.calories} kcal`} accent />
+        <div className="flex gap-2">
+          <MetaPill label="TMB" value={`${targets.bmr} kcal`} />
+          <MetaPill label="TDEE" value={`${targets.tdee} kcal`} />
+          <MetaPill label="Meta" value={`${targets.calories} kcal`} accent />
         </div>
-      </Card>
-
-      <div className="mb-4 grid grid-cols-2 gap-3">
-        <TargetCard icon={Beef} label="Proteína" value={`${targets.protein} g`} target={`${targets.protein} g`} />
-        <TargetCard icon={Wheat} label="Carboidratos" value={`${targets.carbs} g`} target={`${targets.carbs} g`} />
-      </div>
-
-      <Card className="mb-4">
-        <SectionTitle aside={<Droplets size={18} className="text-primary" />}>Água do dia</SectionTitle>
-        <p className="text-2xl font-semibold text-ink">
-          {liters(log?.waterMl ?? 0)} L <span className="text-sm font-normal text-muted">/ {liters(waterTarget)} L</span>
+        <p className="mt-3 text-xs leading-5 text-muted">
+          Calculado com Mifflin-St Jeor. TMB × fator de atividade = TDEE; TDEE × ajuste do objetivo = Meta.
         </p>
-        <ProgressBar value={log?.waterMl ?? 0} target={waterTarget} />
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          {[250, 500, 750].map((amount) => (
-            <button type="button" key={amount} className="btn-secondary justify-center px-2" onClick={() => actions.addWater(today, amount)}>
-              +{amount} ml
-            </button>
-          ))}
-        </div>
       </Card>
 
-      <Card className="mb-4">
-        <p className="text-sm font-semibold text-ink">Treino de hoje</p>
-        <p className="mt-1 text-xs font-medium uppercase tracking-wide text-primary">{weekday}</p>
-        <div className="mt-3 flex items-end justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-semibold text-ink">{workout.name || "Descanso"}</h2>
-            <p className="mt-1 text-sm text-muted">
-              {workout.exercises.length ? `${workout.exercises.length} exercícios` : "Sem treino planeado"}
-            </p>
-          </div>
-          {workout.exercises.length > 0 && (
-            <button className="btn-primary px-5 py-2.5" onClick={startWorkout}>
-              {trained ? "Concluído" : "Iniciar"}
-            </button>
-          )}
-        </div>
-      </Card>
-
-      <SectionTitle>Metas semanais</SectionTitle>
-      <div className="mb-4 grid grid-cols-2 gap-3">
-        <GoalCard label="Treinos" value={`${weeklyGoals.workouts}/5`} progress={weeklyGoals.workouts} target={5} />
-        <GoalCard label="Alimentação" value={`${weeklyGoals.meals}/7 dias`} progress={weeklyGoals.meals} target={7} />
-        <GoalCard label="Creatina" value={`${weeklyGoals.creatine}/7 dias`} progress={weeklyGoals.creatine} target={7} />
-        <GoalCard label="Água" value={`${liters(weeklyGoals.avgWater)} L média`} progress={weeklyGoals.avgWater} target={3000} />
-      </div>
-
+      {/* Lembretes */}
       <div id="lembretes-hoje">
         <SectionTitle
           aside={
-            <button className="flex items-center gap-1 text-sm font-medium text-primary" onClick={() => setTab("profile")}>
-              <Pencil size={14} /> Editar metas
+            <button
+              type="button"
+              className="flex items-center gap-1 text-sm font-medium text-primary"
+              onClick={() => setTab("profile")}
+            >
+              <Pencil size={14} /> Editar
             </button>
           }
         >
-          Lembretes rápidos
+          Lembretes
         </SectionTitle>
-        <div className="grid grid-cols-2 gap-2">
-          <ReminderChip icon={Scale} label="Atualizar peso" status={weightDue ? "Pendente" : "Em dia"} due={weightDue} onClick={() => setWeightModal({ id: "", date: today, weight: profile.pesoAtual })} />
+        <div className="mb-6 grid grid-cols-2 gap-2">
+          <ReminderChip
+            icon={Scale}
+            label="Peso"
+            status={weightDue ? "Atualizar" : "Em dia"}
+            due={weightDue}
+            onClick={() => setWeightModal({ id: "", date: today, weight: lastWeight?.weight ?? profile.pesoAtual })}
+          />
           <ReminderChip
             icon={Pill}
             label="Creatina"
-            status={log?.creatine === true ? "Tomada" : "Não registada"}
+            status={log?.creatine === true ? "Tomada" : "Pendente"}
             due={log?.creatine !== true}
             onClick={() => actions.setCreatine(today, log?.creatine !== true)}
           />
-          <ReminderChip icon={Ruler} label="Atualizar medidas" status={measuresDue ? "Pendente" : "Em dia"} due={measuresDue} onClick={() => setTab("profile")} />
-          <ReminderChip icon={Dumbbell} label="Refeições" status={mealCount < 3 ? `${3 - mealCount} pendente(s)` : "Concluídas"} due={mealCount < 3} onClick={() => setTab("food")} />
+          <ReminderChip
+            icon={Ruler}
+            label="Medidas"
+            status={measuresDue ? "Atualizar" : "Em dia"}
+            due={measuresDue}
+            onClick={() => setTab("profile")}
+          />
+          <ReminderChip
+            icon={UtensilsCrossed}
+            label="Refeições"
+            status={mealCount < 3 ? `${mealCount}/3 feitas` : "Completas"}
+            due={mealCount < 3}
+            onClick={() => setTab("food")}
+          />
         </div>
       </div>
 
+      {/* Modals */}
       <Modal title="Como a meta é calculada" open={showFormula} onClose={() => setShowFormula(false)}>
         <p className="text-sm leading-6 text-muted">
-          TMB = Mifflin-St Jeor ({targets.bmr} kcal). TDEE = TMB × fator de atividade ({targets.activityFactor}) = {targets.tdee} kcal. Meta por objetivo = TDEE × {targets.objectiveFactor} = {targets.baseCalories} kcal. Ajuste por biotipo = {Math.round(targets.somatotypeAdjustmentPercent * 100)}% ({targets.somatotypeAdjustmentCalories} kcal). Meta final = {targets.calories} kcal.
+          <strong>TMB (Taxa Metabólica Basal)</strong> = Mifflin-St Jeor = {targets.bmr} kcal<br />
+          Homem: 10×peso + 6,25×altura − 5×idade + 5<br />
+          Mulher: 10×peso + 6,25×altura − 5×idade − 161
         </p>
-        <p className="mt-3 text-sm leading-6 text-muted">Este ajuste é contextual e conservador. Deve ser confirmado pela evolução semanal de peso, medidas e desempenho.</p>
+        <p className="mt-3 text-sm leading-6 text-muted">
+          <strong>TDEE</strong> = TMB × fator de atividade ({targets.activityFactor}) = {targets.tdee} kcal
+        </p>
+        <p className="mt-3 text-sm leading-6 text-muted">
+          <strong>Meta calórica</strong> = TDEE × ajuste por objetivo ({targets.objectiveFactor}) = {targets.baseCalories} kcal
+          {targets.somatotypeAdjustmentCalories !== 0 && (
+            <> + ajuste biotipo ({targets.somatotypeAdjustmentCalories} kcal) = {targets.calories} kcal</>
+          )}
+        </p>
+        <p className="mt-3 text-xs leading-5 text-muted">
+          Este ajuste é contextual e conservador. Confirme pela evolução semanal de peso, medidas e desempenho.
+        </p>
       </Modal>
-      <Modal title="Adicionar refeição" open={mealModal} onClose={() => setMealModal(false)}>
-        <div className="grid gap-2">
-          {["Refeição 1", "Refeição 2", "Refeição 3"].map((meal) => (
-            <button key={meal} type="button" className="btn-secondary justify-center py-3" onClick={() => { setMealModal(false); setTab("food"); }}>
-              {meal}
-            </button>
-          ))}
-        </div>
-      </Modal>
-      <Modal title="Adicionar água" open={waterModal} onClose={() => setWaterModal(false)}>
-        <div className="grid grid-cols-3 gap-2">
-          {[250, 500, 750].map((amount) => (
-            <button key={amount} type="button" className="btn-secondary justify-center py-3" onClick={() => { actions.addWater(today, amount); setWaterModal(false); }}>
-              +{amount} ml
-            </button>
-          ))}
-        </div>
-      </Modal>
+
       <WeightQuickModal
         entry={weightModal}
         onClose={() => setWeightModal(null)}
@@ -242,64 +396,78 @@ export function HomePage({ data, actions, setTab }: { data: FitnessData; actions
   );
 }
 
-function TargetCard({ icon: Icon, label, value, target }: { icon: IconType; label: string; value: string; target: string }) {
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function MacroBar({
+  label,
+  value,
+  target,
+  unit,
+  color
+}: {
+  label: string;
+  value: number;
+  target: number;
+  unit: string;
+  color: string;
+}) {
+  const pct = target > 0 ? Math.min(100, (value / target) * 100) : 0;
   return (
-    <Card className="p-3.5">
-      <div className="mb-2 flex items-center justify-between">
-        <p className="text-xs font-medium text-muted">{label}</p>
-        <Icon size={16} className="text-primary" />
+    <div>
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] text-muted">{label}</span>
+        <span className="text-[11px] font-semibold text-ink">
+          {value}<span className="font-normal text-muted">/{target}{unit}</span>
+        </span>
       </div>
-      <strong className="block text-lg text-ink">{value}</strong>
-      <p className="mt-1 text-xs text-muted">/meta {target}</p>
-    </Card>
-  );
-}
-
-function ProgressCard({ icon: Icon, label, value, progress, target, badge }: { icon: IconType; label: string; value: string; progress: number; target: number; badge?: string }) {
-  return (
-    <Card className="p-3.5">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <Icon size={17} className="text-primary" />
-        {badge && <span className="badge-soft">{badge}</span>}
+      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
+        <div
+          className={`h-full rounded-full ${color}`}
+          style={{ width: `${pct}%`, transition: "width 0.4s ease" }}
+        />
       </div>
-      <p className="text-xs font-medium text-muted">{label}</p>
-      <p className="mt-1 min-h-10 text-base font-bold leading-5 text-ink">{value}</p>
-      <ProgressBar value={progress} target={target} />
-    </Card>
-  );
-}
-
-function QuickAction({ icon: Icon, label, onClick, active = false }: { icon: IconType; label: string; onClick: () => void; active?: boolean }) {
-  return (
-    <button type="button" className="quick-action" onClick={onClick}>
-      <Icon size={23} className={active ? "text-success" : "text-primary"} />
-      <span>{label}</span>
-    </button>
-  );
-}
-
-function GoalCard({ label, value, progress, target }: { label: string; value: string; progress: number; target: number }) {
-  return (
-    <Card className="p-3.5">
-      <p className="text-sm font-semibold text-ink">{label}</p>
-      <p className="mt-1 text-xl font-extrabold text-ink">{value}</p>
-      <ProgressBar value={progress} target={target} />
-    </Card>
-  );
-}
-
-function Calculation({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
-  return (
-    <div className={`rounded-2xl px-2 py-3 text-center ${accent ? "bg-primary-light" : "bg-slate-50"}`}>
-      <p className="text-[11px] text-muted">{label}</p>
-      <p className={`mt-1 text-sm font-semibold ${accent ? "text-primary" : "text-ink"}`}>{value}</p>
     </div>
   );
 }
 
-function ReminderChip({ icon: Icon, label, status, due, onClick }: { icon: IconType; label: string; status: string; due: boolean; onClick: () => void }) {
+function WeekCard({ label, value, progress, target }: { label: string; value: string; progress: number; target: number }) {
   return (
-    <button type="button" className="rounded-2xl border border-outline bg-white p-3 text-left shadow-card" onClick={onClick}>
+    <Card className="p-3.5">
+      <p className="text-xs font-medium text-muted">{label}</p>
+      <p className="mt-1 text-lg font-extrabold text-ink">{value}</p>
+      <ProgressBar value={progress} target={target} />
+    </Card>
+  );
+}
+
+function MetaPill({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div className={`flex-1 rounded-2xl px-2 py-2.5 text-center ${accent ? "bg-primary-light" : "bg-slate-50"}`}>
+      <p className="text-[10px] text-muted">{label}</p>
+      <p className={`mt-0.5 text-xs font-bold ${accent ? "text-primary" : "text-ink"}`}>{value}</p>
+    </div>
+  );
+}
+
+function ReminderChip({
+  icon: Icon,
+  label,
+  status,
+  due,
+  onClick
+}: {
+  icon: IconType;
+  label: string;
+  status: string;
+  due: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="rounded-2xl border border-outline bg-white p-3 text-left shadow-card"
+      onClick={onClick}
+    >
       <Icon size={17} className={due ? "text-primary" : "text-success"} />
       <p className="mt-2 text-sm font-medium text-ink">{label}</p>
       <p className={`mt-1 text-xs ${due ? "text-primary" : "text-success"}`}>{status}</p>
@@ -308,7 +476,7 @@ function ReminderChip({ icon: Icon, label, status, due, onClick }: { icon: IconT
 }
 
 function liters(value: number): string {
-  return (value / 1000).toLocaleString("pt-PT", { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+  return (value / 1000).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 2 });
 }
 
 function calculateWeeklyGoals(data: FitnessData) {
@@ -325,7 +493,9 @@ function calculateWeeklyGoals(data: FitnessData) {
     workouts: data.completedWorkouts.filter((entry) => days.includes(entry.date)).length,
     meals: logs.filter((entry) => completedMeals(entry) > 0).length,
     creatine: logs.filter((entry) => entry.creatine === true).length,
-    avgWater: Math.round(logs.reduce((total, entry) => total + entry.waterMl, 0) / Math.max(logs.length, 1))
+    avgWater: Math.round(
+      logs.reduce((total, entry) => total + entry.waterMl, 0) / Math.max(logs.length, 1)
+    )
   };
 }
 
@@ -344,15 +514,36 @@ function WeightQuickModal({
   }, [entry]);
   if (!entry) return null;
   return (
-    <Modal open title="Atualizar peso" onClose={onClose}>
-      <form className="space-y-3" onSubmit={(event) => {
-        event.preventDefault();
-        const form = new FormData(event.currentTarget);
-        onSave({ date: String(form.get("date")), weight: Number(weightText) });
-      }}>
-        <label className="field-label">Data<input type="date" name="date" required defaultValue={entry.date} /></label>
-        <label className="field-label">Peso (kg)<input type="number" name="weight" min="30" max="300" step="0.1" required value={weightText} placeholder="Ex: 80" onChange={(event) => setWeightText(event.target.value.replace(/^0+(?=\d)/, ""))} /></label>
-        <button className="btn-primary w-full py-3" type="submit">Guardar peso</button>
+    <Modal open title="Registar peso" onClose={onClose}>
+      <form
+        className="space-y-3"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const form = new FormData(event.currentTarget);
+          onSave({ date: String(form.get("date")), weight: Number(weightText) });
+        }}
+      >
+        <label className="field-label">
+          Data
+          <input type="date" name="date" required defaultValue={entry.date} />
+        </label>
+        <label className="field-label">
+          Peso (kg)
+          <input
+            type="number"
+            name="weight"
+            min="30"
+            max="300"
+            step="0.1"
+            required
+            value={weightText}
+            placeholder="Ex: 80"
+            onChange={(event) => setWeightText(event.target.value.replace(/^0+(?=\d)/, ""))}
+          />
+        </label>
+        <button className="btn-primary w-full py-3" type="submit">
+          Guardar peso
+        </button>
       </form>
     </Modal>
   );

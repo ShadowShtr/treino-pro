@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Check, Copy, Droplets, Pencil, Plus, Search, Trash2 } from "lucide-react";
-import { Card, Empty, Modal, PageHeader, ProgressBar, SectionTitle } from "../components/Ui";
+import { Card, Empty, Modal, PageHeader, SectionTitle } from "../components/Ui";
 import { macrosForItem, macrosForLog } from "../lib/calculations";
 import { calculateTargets, calculateWaterTarget } from "../lib/fitnessFormulas";
 import { formatDate, todayISO } from "../lib/date";
@@ -11,9 +11,9 @@ type Actions = ReturnType<typeof useFitnessData>["actions"];
 type MealId = keyof DayLog["meals"];
 
 const mealEntries: { id: MealId; label: string }[] = [
-  { id: "refeicao1", label: "Refeição 1" },
-  { id: "refeicao2", label: "Refeição 2" },
-  { id: "refeicao3", label: "Refeição 3" }
+  { id: "refeicao1", label: "Café da manhã" },
+  { id: "refeicao2", label: "Almoço" },
+  { id: "refeicao3", label: "Jantar" }
 ];
 
 export function FoodPage({ data, actions }: { data: FitnessData; actions: Actions }) {
@@ -29,42 +29,154 @@ export function FoodPage({ data, actions }: { data: FitnessData; actions: Action
   const trained = data.completedWorkouts.some((entry) => entry.date === date);
   const waterTarget = calculateWaterTarget(data.profile!, trained);
 
+  const caloriesPct = targets.calories > 0 ? Math.min(1, macros.calories / targets.calories) : 0;
+
+  // SVG ring
+  const ringR = 44;
+  const ringStroke = 8;
+  const ringCircumference = 2 * Math.PI * ringR;
+  const ringOffset = ringCircumference * (1 - caloriesPct);
+
   return (
     <>
       <PageHeader
         eyebrow="Registo diário"
         title="Alimentação"
-        action={<input className="date-pill" type="date" value={date} onChange={(event) => setDate(event.target.value)} />}
+        action={
+          <input
+            className="date-pill"
+            type="date"
+            value={date}
+            onChange={(event) => setDate(event.target.value)}
+          />
+        }
       />
 
+      {/* Summary hero card */}
       <Card className="mb-4">
-        <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-          <Macro label="Calorias" value={Math.round(macros.calories)} target={targets.calories} suffix="kcal" />
-          <Macro label="Proteína" value={Math.round(macros.protein)} target={targets.protein} suffix="g" />
-          <Macro label="Carboidratos" value={Math.round(macros.carbs)} target={targets.carbs} suffix="g" />
-          <Macro label="Gorduras" value={Math.round(macros.fats)} target={targets.fats} suffix="g" />
-        </div>
-      </Card>
+        <div className="flex items-center gap-4">
+          {/* Calorie ring */}
+          <div className="relative flex-shrink-0">
+            <svg
+              width={ringR * 2 + ringStroke}
+              height={ringR * 2 + ringStroke}
+              viewBox={`0 0 ${ringR * 2 + ringStroke} ${ringR * 2 + ringStroke}`}
+            >
+              <circle
+                cx={ringR + ringStroke / 2}
+                cy={ringR + ringStroke / 2}
+                r={ringR}
+                fill="none"
+                stroke="#f1f5f9"
+                strokeWidth={ringStroke}
+              />
+              <circle
+                cx={ringR + ringStroke / 2}
+                cy={ringR + ringStroke / 2}
+                r={ringR}
+                fill="none"
+                stroke="#fc4c02"
+                strokeWidth={ringStroke}
+                strokeLinecap="round"
+                strokeDasharray={ringCircumference}
+                strokeDashoffset={ringOffset}
+                transform={`rotate(-90 ${ringR + ringStroke / 2} ${ringR + ringStroke / 2})`}
+                style={{ transition: "stroke-dashoffset 0.5s ease" }}
+              />
+              <text
+                x="50%"
+                y="48%"
+                dominantBaseline="middle"
+                textAnchor="middle"
+                style={{ fontSize: 15, fontWeight: 800, fill: "#0f172a" }}
+              >
+                {Math.round(macros.calories)}
+              </text>
+              <text
+                x="50%"
+                y="62%"
+                dominantBaseline="middle"
+                textAnchor="middle"
+                style={{ fontSize: 8, fill: "#94a3b8" }}
+              >
+                kcal
+              </text>
+            </svg>
+          </div>
 
-      <Card className="mb-4">
-        <SectionTitle aside={<Droplets size={18} className="text-primary" />}>Água</SectionTitle>
-        <p className="mb-1 text-sm text-slate-500">
-          Recomendada {trained ? "em dia de treino" : "hoje"}: <strong className="text-slate-900">{waterTarget} ml</strong>
-        </p>
-        <p className="text-xl font-semibold">{log?.waterMl ?? 0} ml <span className="text-sm font-normal text-slate-400">ingeridos</span></p>
-        <ProgressBar value={log?.waterMl ?? 0} target={waterTarget} />
-        <div className="mt-3 grid grid-cols-4 gap-2">
+          {/* Macro bars */}
+          <div className="flex-1 space-y-2.5">
+            <FoodMacroBar
+              label="Proteína"
+              value={Math.round(macros.protein)}
+              target={targets.protein}
+              unit="g"
+              color="bg-blue-500"
+            />
+            <FoodMacroBar
+              label="Carbs"
+              value={Math.round(macros.carbs)}
+              target={targets.carbs}
+              unit="g"
+              color="bg-amber-500"
+            />
+            <FoodMacroBar
+              label="Gordura"
+              value={Math.round(macros.fats)}
+              target={targets.fats}
+              unit="g"
+              color="bg-rose-400"
+            />
+          </div>
+        </div>
+
+        {/* Water chips */}
+        <div className="mt-4 flex items-center gap-2 flex-wrap">
+          <Droplets size={15} className="text-primary flex-shrink-0" />
           {[250, 500, 750].map((amount) => (
-            <button type="button" className="btn-secondary justify-center px-1 text-xs" key={amount} onClick={() => actions.addWater(date, amount)}>
-              +{amount}
+            <button
+              key={amount}
+              type="button"
+              className="rounded-full border border-outline bg-slate-50 px-2.5 py-1 text-xs font-medium text-ink"
+              onClick={() => actions.addWater(date, amount)}
+            >
+              +{amount}ml
             </button>
           ))}
-          <button type="button" className="btn-secondary justify-center px-1 text-xs" onClick={() => actions.addWater(date, -(log?.waterMl ?? 0))}>
-            Zerar
+          <span className="ml-auto text-xs text-muted">
+            {log?.waterMl ?? 0} ml / {waterTarget} ml
+          </span>
+        </div>
+
+        {/* Creatine toggle */}
+        <div className="mt-3 flex items-center gap-2">
+          <span className="text-xs font-medium text-muted mr-1">Creatina:</span>
+          <button
+            type="button"
+            className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+              log?.creatine === true
+                ? "bg-success text-white"
+                : "border border-outline bg-slate-50 text-ink"
+            }`}
+            onClick={() => actions.setCreatine(date, true)}
+          >
+            <Check size={11} className="inline mr-1" />Tomei
+          </button>
+          <button
+            type="button"
+            className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+              log?.creatine === false
+                ? "bg-slate-400 text-white"
+                : "border border-outline bg-slate-50 text-ink"
+            }`}
+            onClick={() => actions.setCreatine(date, false)}
+          >
+            Não tomei
           </button>
         </div>
       </Card>
 
+      {/* Meal cards */}
       <div className="mb-4 space-y-3">
         {mealEntries.map(({ id, label }) => {
           const items = log?.meals[id] ?? [];
@@ -72,7 +184,11 @@ export function FoodPage({ data, actions }: { data: FitnessData; actions: Action
           return (
             <Card key={id}>
               <SectionTitle
-                aside={<span className="text-xs text-slate-400">{Math.round(total)} kcal</span>}
+                aside={
+                  <span className="text-xs font-semibold text-primary">
+                    {Math.round(total)} kcal
+                  </span>
+                }
               >
                 {label}
               </SectionTitle>
@@ -88,13 +204,24 @@ export function FoodPage({ data, actions }: { data: FitnessData; actions: Action
                   ))}
                 </div>
               ) : (
-                <Empty>Nenhum alimento registado.</Empty>
+                <p className="rounded-2xl bg-slate-50 px-4 py-3 text-center text-xs text-slate-400">
+                  Toque em + para adicionar
+                </p>
               )}
               <div className="mt-3 flex gap-2">
-                <button type="button" className="btn-primary flex-1 py-2.5" onClick={() => setActiveMeal(id)}>
+                <button
+                  type="button"
+                  className="btn-primary flex-1 py-2.5"
+                  onClick={() => setActiveMeal(id)}
+                >
                   <Plus size={16} /> Adicionar
                 </button>
-                <button type="button" className="icon-action" aria-label={`Copiar para ${label}`} onClick={() => setCopyMeal(id)}>
+                <button
+                  type="button"
+                  className="icon-action"
+                  aria-label={`Copiar para ${label}`}
+                  onClick={() => setCopyMeal(id)}
+                >
                   <Copy size={18} />
                 </button>
               </div>
@@ -103,44 +230,47 @@ export function FoodPage({ data, actions }: { data: FitnessData; actions: Action
         })}
       </div>
 
+      {/* Custom foods card */}
       <Card className="mb-4">
-        <SectionTitle>Creatina diária</SectionTitle>
-        <p className="mb-3 text-sm text-slate-500">Checklist simples, sem cálculo nutricional.</p>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            className={`toggle-button ${log?.creatine === true ? "selected" : ""}`}
-            onClick={() => actions.setCreatine(date, true)}
-          >
-            <Check size={17} /> Tomei
-          </button>
-          <button
-            type="button"
-            className={`toggle-button ${log?.creatine === false ? "selected-negative" : ""}`}
-            onClick={() => actions.setCreatine(date, false)}
-          >
-            Não tomei
-          </button>
-        </div>
-      </Card>
-
-      <Card>
         <SectionTitle
-          aside={<button className="text-sm font-medium text-primary" onClick={() => { setEditingFood(undefined); setCustomOpen(true); }}>+ Novo</button>}
+          aside={
+            <button
+              type="button"
+              className="text-sm font-medium text-primary"
+              onClick={() => { setEditingFood(undefined); setCustomOpen(true); }}
+            >
+              + Novo
+            </button>
+          }
         >
           Alimentos personalizados
         </SectionTitle>
         {data.foods.filter((food) => food.custom).length ? (
           <div className="space-y-2">
             {data.foods.filter((food) => food.custom).map((food) => (
-              <div key={food.id} className="flex items-center justify-between rounded-2xl bg-slate-50 px-3 py-2.5">
+              <div
+                key={food.id}
+                className="flex items-center justify-between rounded-2xl bg-slate-50 px-3 py-2.5"
+              >
                 <div>
-                  <p className="text-sm font-medium">{food.nome}</p>
+                  <p className="text-sm font-medium text-ink">{food.nome}</p>
                   <p className="text-xs text-slate-400">{food.calories} kcal / 100 g</p>
                 </div>
-                <div className="flex gap-2">
-                  <button className="text-xs font-medium text-primary" onClick={() => { setEditingFood(food); setCustomOpen(true); }}>Editar</button>
-                  <button className="text-slate-400" onClick={() => actions.deleteFood(food.id)}><Trash2 size={16} /></button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="text-xs font-medium text-primary"
+                    onClick={() => { setEditingFood(food); setCustomOpen(true); }}
+                  >
+                    Editar
+                  </button>
+                  <button
+                    type="button"
+                    className="text-slate-400"
+                    onClick={() => actions.deleteFood(food.id)}
+                  >
+                    <Trash2 size={16} />
+                  </button>
                 </div>
               </div>
             ))}
@@ -150,6 +280,7 @@ export function FoodPage({ data, actions }: { data: FitnessData; actions: Action
         )}
       </Card>
 
+      {/* Modals */}
       <AddFoodModal
         open={activeMeal !== null}
         foods={data.foods}
@@ -190,12 +321,37 @@ export function FoodPage({ data, actions }: { data: FitnessData; actions: Action
   );
 }
 
-function Macro({ label, value, target, suffix }: { label: string; value: number; target: number; suffix: string }) {
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function FoodMacroBar({
+  label,
+  value,
+  target,
+  unit,
+  color
+}: {
+  label: string;
+  value: number;
+  target: number;
+  unit: string;
+  color: string;
+}) {
+  const pct = target > 0 ? Math.min(100, (value / target) * 100) : 0;
   return (
     <div>
-      <p className="text-xs text-slate-400">{label}</p>
-      <p className="text-sm font-semibold">{value} <span className="font-normal text-slate-400">/ {target} {suffix}</span></p>
-      <ProgressBar value={value} target={target} />
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] text-muted">{label}</span>
+        <span className="text-[11px] font-semibold text-ink">
+          {value}
+          <span className="font-normal text-muted">/{target}{unit}</span>
+        </span>
+      </div>
+      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
+        <div
+          className={`h-full rounded-full ${color}`}
+          style={{ width: `${pct}%`, transition: "width 0.4s ease" }}
+        />
+      </div>
     </div>
   );
 }
@@ -205,13 +361,18 @@ function MealRow({ item, onEdit, onRemove }: { item: MealItem; onEdit: () => voi
   return (
     <div className="flex items-start gap-2 rounded-2xl bg-slate-50 px-3 py-2.5">
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{item.food.nome}</p>
+        <p className="truncate text-sm font-medium text-ink">{item.food.nome}</p>
         <p className="text-xs text-slate-400">
-          {item.quantity} {item.measure === "g" ? "g" : item.food.unitName ?? "un."} • {Math.round(values.calories)} kcal • {Math.round(values.protein)} g prot.
+          {item.quantity} {item.measure === "g" ? "g" : (item.food.unitName ?? "un.")} •{" "}
+          {Math.round(values.calories)} kcal • {Math.round(values.protein)} g prot.
         </p>
       </div>
-      <button className="mt-1 text-slate-400" onClick={onEdit}><Pencil size={16} /></button>
-      <button className="mt-1 text-slate-400" onClick={onRemove}><Trash2 size={16} /></button>
+      <button type="button" className="mt-1 text-slate-400" onClick={onEdit}>
+        <Pencil size={16} />
+      </button>
+      <button type="button" className="mt-1 text-slate-400" onClick={onRemove}>
+        <Trash2 size={16} />
+      </button>
     </div>
   );
 }
@@ -231,10 +392,30 @@ function AddFoodModal({
   const [selected, setSelected] = useState<Food | null>(null);
   const [quantity, setQuantity] = useState("100");
   const [measure, setMeasure] = useState<"g" | "unit">("g");
+
   const filtered = useMemo(
-    () => foods.filter((food) => food.nome.toLowerCase().includes(search.toLowerCase())).slice(0, 20),
+    () =>
+      foods
+        .filter((food) => food.nome.toLowerCase().includes(search.toLowerCase()))
+        .slice(0, 20),
     [foods, search]
   );
+
+  // Live preview macros
+  const previewMacros = useMemo(() => {
+    if (!selected || !quantity || Number(quantity) <= 0) return null;
+    const grams =
+      measure === "unit"
+        ? Number(quantity) * (selected.gramsPerUnit ?? selected.baseGrams)
+        : Number(quantity);
+    const factor = grams / selected.baseGrams;
+    return {
+      calories: Math.round(selected.calories * factor),
+      protein: Math.round(selected.protein * factor * 10) / 10,
+      carbs: Math.round(selected.carbs * factor * 10) / 10,
+      fats: Math.round(selected.fats * factor * 10) / 10
+    };
+  }, [selected, quantity, measure]);
 
   function choose(food: Food) {
     setSelected(food);
@@ -242,48 +423,119 @@ function AddFoodModal({
     setMeasure(food.unitName ? "unit" : "g");
   }
 
+  function handleClose() {
+    setSelected(null);
+    setSearch("");
+    onClose();
+  }
+
   return (
-    <Modal open={open} title="Adicionar alimento" onClose={onClose}>
+    <Modal open={open} title="Adicionar alimento" onClose={handleClose}>
       {!selected ? (
         <>
-          <label className="search-input mb-3"><Search size={17} /><input autoFocus placeholder="Pesquisar alimento..." value={search} onChange={(event) => setSearch(event.target.value)} /></label>
+          <label className="search-input mb-3">
+            <Search size={17} />
+            <input
+              autoFocus
+              placeholder="Pesquisar alimento..."
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </label>
           <div className="space-y-2">
             {filtered.map((food) => (
-              <button type="button" key={food.id} className="selection-row" onClick={() => choose(food)}>
+              <button
+                type="button"
+                key={food.id}
+                className="selection-row"
+                onClick={() => choose(food)}
+              >
                 <span>{food.nome}</span>
                 <small>{food.calories} kcal / 100 g</small>
               </button>
             ))}
+            {filtered.length === 0 && (
+              <p className="rounded-2xl bg-slate-50 py-4 text-center text-sm text-slate-400">
+                Nenhum alimento encontrado.
+              </p>
+            )}
           </div>
         </>
       ) : (
-        <form className="space-y-4" onSubmit={(event) => {
-          event.preventDefault();
-          if (!quantity || Number(quantity) <= 0) {
-            window.alert("Quantidade pendente.");
-            return;
-          }
-          onAdd({ food: selected, quantity: Number(quantity), measure });
-          setSelected(null);
-          setSearch("");
-        }}>
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!quantity || Number(quantity) <= 0) {
+              window.alert("Quantidade pendente.");
+              return;
+            }
+            onAdd({ food: selected, quantity: Number(quantity), measure });
+            setSelected(null);
+            setSearch("");
+          }}
+        >
+          {/* Food preview card */}
           <div className="rounded-2xl bg-primary-light p-3">
-            <p className="font-medium text-ink">{selected.nome}</p>
-            <p className="text-sm text-primary">{selected.calories} kcal / 100 g</p>
+            <p className="font-semibold text-ink">{selected.nome}</p>
+            <p className="mt-0.5 text-xs text-primary">{selected.calories} kcal / 100 g</p>
+            <div className="mt-2 flex gap-3">
+              <span className="text-[11px] text-muted">Prot: {selected.protein}g</span>
+              <span className="text-[11px] text-muted">Carbs: {selected.carbs}g</span>
+              <span className="text-[11px] text-muted">Gord: {selected.fats}g</span>
+            </div>
           </div>
+
           <div className="grid grid-cols-2 gap-3">
-            <label className="field-label">Quantidade
-              <input type="number" min="0.1" step="0.1" required value={quantity} placeholder="Ex: 100" onChange={(event) => setQuantity(event.target.value.replace(/^0+(?=\d)/, ""))} />
+            <label className="field-label">
+              Quantidade
+              <input
+                type="number"
+                min="0.1"
+                step="0.1"
+                required
+                value={quantity}
+                placeholder="Ex: 100"
+                onChange={(event) =>
+                  setQuantity(event.target.value.replace(/^0+(?=\d)/, ""))
+                }
+              />
             </label>
-            <label className="field-label">Medida
-              <select value={measure} onChange={(event) => setMeasure(event.target.value as "g" | "unit")}>
+            <label className="field-label">
+              Medida
+              <select
+                value={measure}
+                onChange={(event) => setMeasure(event.target.value as "g" | "unit")}
+              >
                 <option value="g">gramas</option>
-                {selected.unitName && <option value="unit">{selected.unitName}</option>}
+                {selected.unitName && (
+                  <option value="unit">{selected.unitName}</option>
+                )}
               </select>
             </label>
           </div>
-          <button className="btn-primary w-full py-3" type="submit">Adicionar à refeição</button>
-          <button className="w-full text-sm text-slate-500" type="button" onClick={() => setSelected(null)}>Voltar à pesquisa</button>
+
+          {/* Live preview */}
+          {previewMacros && (
+            <div className="rounded-2xl bg-slate-50 px-3 py-2.5 text-xs text-slate-600">
+              <span className="font-semibold text-ink">Esta porção: </span>
+              {previewMacros.calories} kcal,{" "}
+              {previewMacros.protein} g prot,{" "}
+              {previewMacros.carbs} g carbs,{" "}
+              {previewMacros.fats} g gord
+            </div>
+          )}
+
+          <button className="btn-primary w-full py-3" type="submit">
+            Adicionar
+          </button>
+          <button
+            className="w-full text-sm text-slate-500"
+            type="button"
+            onClick={() => setSelected(null)}
+          >
+            Voltar à pesquisa
+          </button>
         </form>
       )}
     </Modal>
@@ -308,19 +560,32 @@ function CopyMealModal({
     .sort((a, b) => b.date.localeCompare(a.date));
   return (
     <Modal open={open} title="Copiar refeição" onClose={onClose}>
-      {options.length ? options.map((log) => (
-        <div className="mb-4" key={log.date}>
-          <p className="mb-2 text-xs font-semibold uppercase text-slate-400">{formatDate(log.date)}</p>
-          <div className="space-y-2">
-            {mealEntries.filter(({ id }) => log.meals[id].length).map(({ id, label }) => (
-              <button className="selection-row" type="button" key={id} onClick={() => onCopy(log.date, id)}>
-                <span>{label}</span>
-                <small>{log.meals[id].length} itens</small>
-              </button>
-            ))}
+      {options.length ? (
+        options.map((log) => (
+          <div className="mb-4" key={log.date}>
+            <p className="mb-2 text-xs font-semibold uppercase text-slate-400">
+              {formatDate(log.date)}
+            </p>
+            <div className="space-y-2">
+              {mealEntries
+                .filter(({ id }) => log.meals[id].length)
+                .map(({ id, label }) => (
+                  <button
+                    className="selection-row"
+                    type="button"
+                    key={id}
+                    onClick={() => onCopy(log.date, id)}
+                  >
+                    <span>{label}</span>
+                    <small>{log.meals[id].length} itens</small>
+                  </button>
+                ))}
+            </div>
           </div>
-        </div>
-      )) : <Empty>Não existem refeições anteriores para copiar.</Empty>}
+        ))
+      ) : (
+        <Empty>Não existem refeições anteriores para copiar.</Empty>
+      )}
     </Modal>
   );
 }
@@ -336,7 +601,16 @@ function CustomFoodModal({
   onClose: () => void;
   onSave: (food: Food) => void;
 }) {
-  const initial = food ?? { id: crypto.randomUUID(), nome: "", baseGrams: 100, calories: 0, protein: 0, carbs: 0, fats: 0, custom: true };
+  const initial = food ?? {
+    id: crypto.randomUUID(),
+    nome: "",
+    baseGrams: 100,
+    calories: 0,
+    protein: 0,
+    carbs: 0,
+    fats: 0,
+    custom: true
+  };
   const [form, setForm] = useState<Food>(initial);
   const [nutrition, setNutrition] = useState({
     calories: initial.calories ? String(initial.calories) : "",
@@ -357,35 +631,55 @@ function CustomFoodModal({
   }, [food?.id, open]);
 
   return (
-    <Modal open={open} title={food ? "Editar alimento" : "Novo alimento"} onClose={onClose}>
-      <form key={key} className="space-y-3" onSubmit={(event: FormEvent) => {
-        event.preventDefault();
-        if (Object.values(nutrition).some((value) => value === "")) {
-          window.alert("Preencha os valores nutricionais. Use 0 quando o nutriente não existir.");
-          return;
-        }
-        onSave({
-          ...form,
-          id: food?.id ?? form.id,
-          calories: Number(nutrition.calories || 0),
-          protein: Number(nutrition.protein || 0),
-          carbs: Number(nutrition.carbs || 0),
-          fats: Number(nutrition.fats || 0),
-          custom: true
-        });
-      }}>
-        <label className="field-label">Nome
-          <input required defaultValue={initial.nome} onChange={(event) => setForm((value) => ({ ...value, nome: event.target.value }))} />
+    <Modal
+      open={open}
+      title={food ? "Editar alimento" : "Novo alimento"}
+      onClose={onClose}
+    >
+      <form
+        key={key}
+        className="space-y-3"
+        onSubmit={(event: FormEvent) => {
+          event.preventDefault();
+          if (Object.values(nutrition).some((value) => value === "")) {
+            window.alert(
+              "Preencha os valores nutricionais. Use 0 quando o nutriente não existir."
+            );
+            return;
+          }
+          onSave({
+            ...form,
+            id: food?.id ?? form.id,
+            calories: Number(nutrition.calories || 0),
+            protein: Number(nutrition.protein || 0),
+            carbs: Number(nutrition.carbs || 0),
+            fats: Number(nutrition.fats || 0),
+            custom: true
+          });
+        }}
+      >
+        <label className="field-label">
+          Nome
+          <input
+            required
+            defaultValue={initial.nome}
+            onChange={(event) =>
+              setForm((value) => ({ ...value, nome: event.target.value }))
+            }
+          />
         </label>
         <p className="text-xs text-slate-400">Valores nutricionais por 100 g</p>
         <div className="grid grid-cols-2 gap-3">
-          {([
-            ["calories", "Calorias"],
-            ["protein", "Proteína (g)"],
-            ["carbs", "Carboidratos (g)"],
-            ["fats", "Gorduras (g)"]
-          ] as [keyof Food, string][]).map(([field, label]) => (
-            <label className="field-label" key={field}>{label}
+          {(
+            [
+              ["calories", "Calorias"],
+              ["protein", "Proteína (g)"],
+              ["carbs", "Carboidratos (g)"],
+              ["fats", "Gorduras (g)"]
+            ] as [keyof Food, string][]
+          ).map(([field, label]) => (
+            <label className="field-label" key={field}>
+              {label}
               <input
                 type="number"
                 min="0"
@@ -393,12 +687,19 @@ function CustomFoodModal({
                 required
                 value={nutrition[field as keyof typeof nutrition]}
                 placeholder="Ex: 10"
-                onChange={(event) => setNutrition((value) => ({ ...value, [field]: event.target.value.replace(/^0+(?=\d)/, "") }))}
+                onChange={(event) =>
+                  setNutrition((value) => ({
+                    ...value,
+                    [field]: event.target.value.replace(/^0+(?=\d)/, "")
+                  }))
+                }
               />
             </label>
           ))}
         </div>
-        <button className="btn-primary w-full py-3" type="submit">Guardar alimento</button>
+        <button className="btn-primary w-full py-3" type="submit">
+          Guardar alimento
+        </button>
       </form>
     </Modal>
   );
@@ -415,36 +716,89 @@ function EditItemModal({
 }) {
   const [quantity, setQuantity] = useState("");
   const [measure, setMeasure] = useState<"g" | "unit">("g");
+
+  // Live preview for edit modal
+  const previewMacros = useMemo(() => {
+    if (!entry || !quantity || Number(quantity) <= 0) return null;
+    const food = entry.item.food;
+    const grams =
+      measure === "unit"
+        ? Number(quantity) * (food.gramsPerUnit ?? food.baseGrams)
+        : Number(quantity);
+    const factor = grams / food.baseGrams;
+    return {
+      calories: Math.round(food.calories * factor),
+      protein: Math.round(food.protein * factor * 10) / 10,
+      carbs: Math.round(food.carbs * factor * 10) / 10,
+      fats: Math.round(food.fats * factor * 10) / 10
+    };
+  }, [entry, quantity, measure]);
+
   useEffect(() => {
     if (entry) {
       setQuantity(String(entry.item.quantity));
       setMeasure(entry.item.measure);
     }
   }, [entry]);
+
   if (!entry) return null;
+
   return (
     <Modal open title="Editar registo" onClose={onClose}>
-      <form className="space-y-3" onSubmit={(event) => {
-        event.preventDefault();
-        if (!quantity || Number(quantity) <= 0) {
-          window.alert("Quantidade pendente.");
-          return;
-        }
-        onSave({ ...entry.item, quantity: Number(quantity), measure });
-      }}>
-        <p className="rounded-2xl bg-slate-50 p-3 text-sm font-medium">{entry.item.food.nome}</p>
+      <form
+        className="space-y-3"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!quantity || Number(quantity) <= 0) {
+            window.alert("Quantidade pendente.");
+            return;
+          }
+          onSave({ ...entry.item, quantity: Number(quantity), measure });
+        }}
+      >
+        <p className="rounded-2xl bg-slate-50 p-3 text-sm font-medium text-ink">
+          {entry.item.food.nome}
+        </p>
         <div className="grid grid-cols-2 gap-3">
-          <label className="field-label">Quantidade
-            <input type="number" min="0.1" step="0.1" value={quantity} placeholder="Ex: 100" onChange={(event) => setQuantity(event.target.value.replace(/^0+(?=\d)/, ""))} required />
+          <label className="field-label">
+            Quantidade
+            <input
+              type="number"
+              min="0.1"
+              step="0.1"
+              value={quantity}
+              placeholder="Ex: 100"
+              onChange={(event) =>
+                setQuantity(event.target.value.replace(/^0+(?=\d)/, ""))
+              }
+              required
+            />
           </label>
-          <label className="field-label">Medida
-            <select value={measure} onChange={(event) => setMeasure(event.target.value as "g" | "unit")}>
+          <label className="field-label">
+            Medida
+            <select
+              value={measure}
+              onChange={(event) => setMeasure(event.target.value as "g" | "unit")}
+            >
               <option value="g">gramas</option>
-              {entry.item.food.unitName && <option value="unit">{entry.item.food.unitName}</option>}
+              {entry.item.food.unitName && (
+                <option value="unit">{entry.item.food.unitName}</option>
+              )}
             </select>
           </label>
         </div>
-        <button className="btn-primary w-full py-3" type="submit">Guardar alteração</button>
+        {previewMacros && (
+          <div className="rounded-2xl bg-slate-50 px-3 py-2.5 text-xs text-slate-600">
+            <span className="font-semibold text-ink">Esta porção: </span>
+            {previewMacros.calories} kcal,{" "}
+            {previewMacros.protein} g prot,{" "}
+            {previewMacros.carbs} g carbs,{" "}
+            {previewMacros.fats} g gord
+          </div>
+        )}
+        <button className="btn-primary w-full py-3" type="submit">
+          Guardar alteração
+        </button>
       </form>
     </Modal>
   );
