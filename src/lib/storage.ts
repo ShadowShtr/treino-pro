@@ -280,7 +280,7 @@ export function loadData(fallback: FitnessData): FitnessData {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return fallback;
     const parsed = JSON.parse(raw) as StoredData;
-    if (!parsed || !Array.isArray(parsed.foods)) {
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
       return fallback;
     }
     return migrateData(parsed, fallback);

@@ -99,6 +99,7 @@ export function useFitnessData() {
   const syncTimer = useRef<number | null>(null);
   const readyForCloudSync = useRef(false);
   const restoringFromCloud = useRef(false);
+  const pendingConflict = useRef(false);
 
   function sameData(a: FitnessData | null, b: FitnessData | null) {
     return JSON.stringify(a) === JSON.stringify(b);
@@ -118,18 +119,46 @@ export function useFitnessData() {
       const cloud = await getCloudAppDataWithMeta();
       const cloudHasData = hasMeaningfulCloudData(cloud.data);
       const localHasData = hasMeaningfulLocalData(data);
-      if (cloudHasData && (!localHasData || sameData(cloud.data, data))) {
+
+      // Cloud has data, local is empty → always use cloud
+      if (cloudHasData && !localHasData) {
         applyRemoteData(cloud.data!, cloud.updatedAt);
         return "cloud-applied";
       }
+
+      // Both have data
       if (cloudHasData && localHasData) {
+        // Identical → just confirm sync
+        if (sameData(cloud.data, data)) {
+          applyRemoteData(cloud.data!, cloud.updatedAt);
+          return "cloud-applied";
+        }
+
+        // Cloud updated AFTER our last sync → another device saved newer data → use cloud
+        const lastSynced = syncStatus.lastSyncedAt;
+        if (lastSynced && cloud.updatedAt && cloud.updatedAt > lastSynced) {
+          applyRemoteData(cloud.data!, cloud.updatedAt);
+          return "cloud-applied";
+        }
+
+        // Can't resolve automatically → show modal
+        pendingConflict.current = true;
         setSyncStatus((cur) => ({ ...cur, authenticated: true, userEmail: email ?? cur.userEmail, state: "pending", lastSyncedAt: cloud.updatedAt, message: "Encontramos dados neste dispositivo e na nuvem. Escolha qual deseja usar." }));
         return "choice-needed";
       }
+
+      // Cloud is empty, local has data → upload to cloud automatically
       if (!cloudHasData && localHasData) {
-        setSyncStatus((cur) => ({ ...cur, authenticated: true, userEmail: email ?? cur.userEmail, state: "pending", message: "Dados encontrados neste dispositivo. Pode enviá-los para a nuvem." }));
-        return "choice-needed";
+        try {
+          const saved = await saveCloudAppData(data, { allowEmptyOverwrite: false });
+          setSyncStatus({ ...saved, authenticated: true, userEmail: email ?? saved.userEmail });
+        } catch {
+          setSyncStatus((cur) => ({ ...cur, authenticated: true, userEmail: email ?? cur.userEmail, state: "error", message: "Erro ao enviar dados para a nuvem." }));
+        }
+        return "local-only";
       }
+
+      // Neither has meaningful data
       setSyncStatus((cur) => ({ ...cur, authenticated: true, userEmail: email ?? cur.userEmail, state: "synced", message: "Conta conectada." }));
       return "local-only";
     } catch {
@@ -159,11 +188,17 @@ export function useFitnessData() {
     }
   }, [data]);
 
+  // Track conflict state via ref so the auto-sync effect can read it without causing loops
+  useEffect(() => {
+    pendingConflict.current = syncStatus.state === "pending";
+  }, [syncStatus.state]);
+
   // Auto-sync on data change
   useEffect(() => {
     persistData(data);
     if (restoringFromCloud.current) return;
     if (!readyForCloudSync.current || !syncStatus.authenticated) return;
+    if (pendingConflict.current) return;
     if (!hasMeaningfulLocalData(data)) return;
     if (syncTimer.current) window.clearTimeout(syncTimer.current);
     setSyncStatus((cur) => ({ ...cur, state: "syncing", message: "Sincronizando..." }));
@@ -373,12 +408,14 @@ export function useFitnessData() {
         setSyncStatus(getSyncStatus());
       },
       async loadFromCloud() {
+        pendingConflict.current = false;
         const result = await getCloudAppDataWithMeta();
         if (result.data) applyRemoteData(result.data, result.updatedAt);
         setSyncStatus((cur) => ({ ...cur, state: result.data ? "synced" : "local", lastSyncedAt: result.data ? result.updatedAt ?? cur.lastSyncedAt : cur.lastSyncedAt, message: result.data ? "Dados da nuvem carregados." : "Nenhum dado encontrado na nuvem." }));
         return result.data;
       },
       async uploadToCloud() {
+        pendingConflict.current = false;
         setSyncStatus((cur) => ({ ...cur, state: "syncing", message: "Sincronizando..." }));
         setSyncStatus(await saveCloudAppData(data, { allowEmptyOverwrite: true }));
       },
