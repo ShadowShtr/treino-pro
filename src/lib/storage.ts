@@ -24,6 +24,7 @@ interface StoredData {
   theme?: AppTheme;
   streak?: Partial<StreakStats>;
   profile?: Record<string, unknown> | null;
+  favoriteFoods?: unknown[];
   foods?: FitnessData["foods"];
   logs?: Record<string, Record<string, unknown>>;
   weights?: FitnessData["weights"];
@@ -219,6 +220,9 @@ export function migrateData(raw: StoredData, fallback: FitnessData): FitnessData
     streak: normalizeStreak(raw.streak),
     profile,
     foods,
+    favoriteFoods: Array.isArray(raw.favoriteFoods)
+      ? (raw.favoriteFoods as unknown[]).filter((id): id is string => typeof id === "string")
+      : [],
     logs,
     weights: Array.isArray(raw.weights) ? raw.weights.map((entry) => ({
       id: sanitizeId(entry.id),

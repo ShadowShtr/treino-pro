@@ -1,11 +1,39 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, Check, ChevronLeft, ChevronRight, Copy, Droplets, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Copy, Droplets, Pencil, Plus, Search, Star, Trash2 } from "lucide-react";
 import { Card, Empty, Modal, PageHeader, SectionTitle } from "../components/Ui";
+import { useToast } from "../components/Toast";
+import { haptic } from "../lib/haptic";
 import { macrosForItem, macrosForLog } from "../lib/calculations";
 import { calculateTargets, calculateWaterTarget } from "../lib/fitnessFormulas";
 import { daysInMonth, formatDate, todayISO } from "../lib/date";
 import type { useFitnessData } from "../hooks/useFitnessData";
 import type { DayLog, FitnessData, Food, MealItem } from "../types";
+
+// ─── Food category icon mapping ───────────────────────────────────────────────
+function foodEmoji(nome: string): string {
+  const n = nome.toLowerCase();
+  if (/frango|peito|coxa|galinha/.test(n)) return "🍗";
+  if (/carne|boi|alcatra|picanha|patinho|acém|músculo|contra|fraldinha/.test(n)) return "🥩";
+  if (/peixe|atum|salmão|tilápia|sardinha|bacalhau|lula|polvo|camarão/.test(n)) return "🐟";
+  if (/ovo/.test(n)) return "🥚";
+  if (/whey|caseína|albumina|proteína|bcaa|suplemento/.test(n)) return "💊";
+  if (/arroz/.test(n)) return "🍚";
+  if (/macarrão|massa|lasanha/.test(n)) return "🍝";
+  if (/pão|tapioca|cuscuz|aveia|granola|biscoito|bolacha|crepioca/.test(n)) return "🍞";
+  if (/batata|mandioca|inhame/.test(n)) return "🥔";
+  if (/feijão|grão|lentilha|ervilha|soja/.test(n)) return "🫘";
+  if (/banana|maçã|laranja|manga|morango|melancia|uva|pera|abacaxi|melão|kiwi|goiaba|caju|limão|romã|ameixa|pêssego|mirtilo|framboesa|nectarina|açaí|jabuticaba|coco|abacate/.test(n)) return "🍎";
+  if (/leite|iogurte|queijo|requeijão|cream|cottage|muçarela|creme|manteiga|ghee/.test(n)) return "🧀";
+  if (/alface|espinafre|brócolis|couve|rúcula|agrião|couve-flor|abobrinha|pepino|tomate|cenoura|beterraba|vagem|chuchu|quiabo|acelga|repolho|nabo|aspargo|alho|cogumelo|pimentão|milho|abóbora/.test(n)) return "🥦";
+  if (/azeite|óleo|manteiga|pasta|amendoim|castanha|noz|amêndoa|pistache|chia|linhaça|gergelim|tahine/.test(n)) return "🫒";
+  if (/coca|pepsi|guaraná|sprite|fanta|refrigerante|energético|cerveja|vinho|isotônico/.test(n)) return "🥤";
+  if (/suco|água|chá/.test(n)) return "💧";
+  if (/café|nescau|achocolatado/.test(n)) return "☕";
+  if (/hambúrguer|hot.dog|nugget|pizza|coxinha|esfiha|pastel/.test(n)) return "🍔";
+  if (/brigadeiro|bolo|sorvete|chocolate|gelatina/.test(n)) return "🍰";
+  if (/açúcar|mel|ketchup|molho|maionese|mostarda/.test(n)) return "🧂";
+  return "🍽️";
+}
 
 type Actions = ReturnType<typeof useFitnessData>["actions"];
 type MealId = keyof DayLog["meals"];
@@ -182,11 +210,23 @@ export function FoodPage({ data, actions }: { data: FitnessData; actions: Action
   const [customOpen, setCustomOpen] = useState(false);
   const [editingFood, setEditingFood] = useState<Food | undefined>();
   const [slotsVisible, setSlotsVisible] = useState(1);
+  const [collapsedMeals, setCollapsedMeals] = useState<Set<MealId>>(new Set());
+  const toast = useToast();
   const log = data.logs[date];
+
+  // Yesterday's log for empty-state suggestions
+  const yesterday = useMemo(() => {
+    const d = new Date(`${date}T12:00:00`);
+    d.setDate(d.getDate() - 1);
+    return data.logs[d.toISOString().slice(0, 10)];
+  }, [date, data.logs]);
 
   useEffect(() => {
     const filled = mealEntries.filter(({ id }) => (log?.meals[id]?.length ?? 0) > 0).length;
     setSlotsVisible((prev) => Math.max(prev, Math.max(1, filled)));
+    // Auto-collapse empty meals when switching dates
+    const empty = new Set(mealEntries.filter(({ id }) => !(log?.meals[id]?.length)).map(({ id }) => id));
+    setCollapsedMeals(empty);
   }, [date]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const macros = macrosForLog(log);
@@ -199,15 +239,23 @@ export function FoodPage({ data, actions }: { data: FitnessData; actions: Action
   const ringCircumference = 2 * Math.PI * ringR;
   const ringOffset = ringCircumference * (1 - caloriesPct);
 
+  function toggleMealCollapse(id: MealId) {
+    setCollapsedMeals((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
   function handleWaterAdd(amount: number) {
-    // allow -250 to remove water
+    haptic("light");
     if (amount === -250) {
-      const cur = log?.waterMl ?? 0;
-      if (cur <= 0) return;
+      if ((log?.waterMl ?? 0) <= 0) return;
       actions.addWater(date, -250);
       return;
     }
     actions.addWater(date, amount);
+    toast(`+${amount} ml de água`, "info");
   }
 
   return (
@@ -273,24 +321,73 @@ export function FoodPage({ data, actions }: { data: FitnessData; actions: Action
       </Card>
 
       {/* Meal cards */}
-      <div className="mb-4 space-y-3">
+      <div className="mb-4 space-y-2">
         {mealEntries.slice(0, slotsVisible).map(({ id, label }) => {
           const items = log?.meals[id] ?? [];
           const total = items.reduce((sum, item) => sum + macrosForItem(item).calories, 0);
+          const collapsed = collapsedMeals.has(id) && items.length === 0;
+          const yesterdayItems = yesterday?.meals[id] ?? [];
+
+          if (collapsed) {
+            return (
+              <button
+                key={id}
+                type="button"
+                className="flex w-full items-center justify-between rounded-2xl border border-outline bg-white px-4 py-3 text-left shadow-card"
+                onClick={() => toggleMealCollapse(id)}
+              >
+                <span className="text-sm font-semibold text-muted">{label}</span>
+                <span className="flex items-center gap-2 text-xs text-slate-400">
+                  <Plus size={14} className="text-primary" />
+                  <ChevronDown size={14} />
+                </span>
+              </button>
+            );
+          }
+
           return (
             <Card key={id}>
-              <SectionTitle aside={<span className="text-xs font-semibold text-primary">{Math.round(total)} kcal</span>}>
-                {label}
-              </SectionTitle>
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <button type="button" className="flex items-center gap-2 min-w-0" onClick={() => items.length === 0 && toggleMealCollapse(id)}>
+                  <h2 className="text-[15px] font-semibold text-ink">{label}</h2>
+                  {items.length === 0 && <ChevronUp size={13} className="text-muted flex-shrink-0" />}
+                </button>
+                <span className="text-xs font-semibold text-primary flex-shrink-0">{Math.round(total)} kcal</span>
+              </div>
+
               {items.length ? (
                 <div className="space-y-2">
                   {items.map((item) => (
-                    <MealRow key={item.id} item={item} onEdit={() => setEditingItem({ meal: id, item })} onRemove={() => actions.removeItem(date, id, item.id)} />
+                    <MealRow key={item.id} item={item} onEdit={() => setEditingItem({ meal: id, item })} onRemove={() => { haptic("light"); actions.removeItem(date, id, item.id); }} />
                   ))}
+                </div>
+              ) : yesterdayItems.length > 0 ? (
+                <div className="mb-2 rounded-2xl bg-slate-50 px-3 py-2.5">
+                  <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">Ontem nesta refeição</p>
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    {yesterdayItems.slice(0, 3).map((item) => (
+                      <span key={item.id} className="rounded-full bg-white border border-outline px-2 py-0.5 text-[11px] text-ink">{item.food.nome}</span>
+                    ))}
+                    {yesterdayItems.length > 3 && <span className="rounded-full bg-white border border-outline px-2 py-0.5 text-[11px] text-muted">+{yesterdayItems.length - 3}</span>}
+                  </div>
+                  <button
+                    type="button"
+                    className="text-xs font-semibold text-primary"
+                    onClick={() => {
+                      const d = new Date(`${date}T12:00:00`);
+                      d.setDate(d.getDate() - 1);
+                      actions.copyMeal(date, id, d.toISOString().slice(0, 10), id);
+                      toast("Refeição de ontem copiada ✓");
+                      haptic("medium");
+                    }}
+                  >
+                    Repetir refeição de ontem →
+                  </button>
                 </div>
               ) : (
                 <p className="rounded-2xl bg-slate-50 px-4 py-3 text-center text-xs text-slate-400">Toque em + para adicionar</p>
               )}
+
               <div className="mt-3 flex gap-2">
                 <button type="button" className="btn-primary flex-1 py-2.5" onClick={() => setActiveMeal(id)}>
                   <Plus size={16} /> Adicionar
@@ -339,8 +436,10 @@ export function FoodPage({ data, actions }: { data: FitnessData; actions: Action
       <AddFoodModal
         open={activeMeal !== null}
         foods={data.foods}
+        favoriteFoods={data.favoriteFoods}
         onClose={() => setActiveMeal(null)}
-        onAdd={(item) => { if (activeMeal) actions.addItem(date, activeMeal, item); setActiveMeal(null); }}
+        onToggleFavorite={actions.toggleFavorite}
+        onAdd={(item) => { if (activeMeal) { actions.addItem(date, activeMeal, item); } setActiveMeal(null); }}
       />
       <CopyMealModal
         open={copyMeal !== null}
@@ -397,18 +496,34 @@ function MealRow({ item, onEdit, onRemove }: { item: MealItem; onEdit: () => voi
   );
 }
 
-function AddFoodModal({ open, foods, onClose, onAdd }: { open: boolean; foods: Food[]; onClose: () => void; onAdd: (item: Omit<MealItem, "id">) => void }) {
+function AddFoodModal({
+  open, foods, favoriteFoods, onClose, onAdd, onToggleFavorite
+}: {
+  open: boolean;
+  foods: Food[];
+  favoriteFoods: string[];
+  onClose: () => void;
+  onAdd: (item: Omit<MealItem, "id">) => void;
+  onToggleFavorite: (id: string) => void;
+}) {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Food | null>(null);
   const [quantity, setQuantity] = useState("100");
   const [measure, setMeasure] = useState<"g" | "unit">("g");
   const scrollingRef = useRef(false);
   const scrollTimerRef = useRef<number | undefined>(undefined);
+  const toast = useToast();
 
-  const filtered = useMemo(
-    () => foods.filter((food) => food.nome.toLowerCase().includes(search.toLowerCase())).slice(0, 80),
-    [foods, search]
-  );
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    const matched = foods.filter((f) => f.nome.toLowerCase().includes(q));
+    if (!search) {
+      const favs = matched.filter((f) => favoriteFoods.includes(f.id));
+      const rest = matched.filter((f) => !favoriteFoods.includes(f.id));
+      return [...favs, ...rest].slice(0, 80);
+    }
+    return matched.slice(0, 80);
+  }, [foods, search, favoriteFoods]);
 
   const previewMacros = useMemo(() => {
     if (!selected || !quantity || Number(quantity) <= 0) return null;
@@ -435,11 +550,9 @@ function AddFoodModal({ open, foods, onClose, onAdd }: { open: boolean; foods: F
     scrollTimerRef.current = window.setTimeout(() => { scrollingRef.current = false; }, 200);
   }
 
-  function handleClose() {
-    setSelected(null);
-    setSearch("");
-    onClose();
-  }
+  function handleClose() { setSelected(null); setSearch(""); onClose(); }
+
+  const hasFavs = !search && favoriteFoods.length > 0 && filtered.some((f) => favoriteFoods.includes(f.id));
 
   return (
     <Modal
@@ -455,18 +568,37 @@ function AddFoodModal({ open, foods, onClose, onAdd }: { open: boolean; foods: F
       ) : undefined}
     >
       {!selected ? (
-        <div className="space-y-2">
-          {filtered.map((food) => (
-            <button type="button" key={food.id} className="selection-row" onClick={() => choose(food)}>
-              <span>{food.nome}</span>
-              <small>{food.calories} kcal / 100 g</small>
-            </button>
-          ))}
+        <div className="space-y-1">
+          {hasFavs && <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-muted">⭐ Favoritos</p>}
+          {filtered.map((food, idx) => {
+            const isFav = favoriteFoods.includes(food.id);
+            const showDivider = hasFavs && idx === favoriteFoods.filter((fid) => filtered.some((f) => f.id === fid)).length && !search;
+            return (
+              <React.Fragment key={food.id}>
+                {showDivider && <p className="pt-2 pb-1 text-[10px] font-bold uppercase tracking-wide text-muted">Todos os alimentos</p>}
+                <div className="flex items-center gap-1">
+                  <button type="button" className="selection-row flex-1" onClick={() => choose(food)}>
+                    <span className="flex items-center gap-2">
+                      <span className="text-base leading-none">{foodEmoji(food.nome)}</span>
+                      <span className="text-sm">{food.nome}</span>
+                    </span>
+                    <small className="flex-shrink-0">{food.calories} kcal/100g</small>
+                  </button>
+                  <button
+                    type="button"
+                    className="flex-shrink-0 p-2"
+                    onClick={(e) => { e.stopPropagation(); onToggleFavorite(food.id); haptic("light"); }}
+                    aria-label={isFav ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+                  >
+                    <Star size={16} className={isFav ? "fill-amber-400 text-amber-400" : "text-slate-300"} />
+                  </button>
+                </div>
+              </React.Fragment>
+            );
+          })}
           {filtered.length === 0 && (
             <div className="flex min-h-[220px] flex-col items-center justify-start pt-10">
-              <p className="rounded-2xl bg-slate-50 px-5 py-4 text-center text-sm text-slate-400">
-                Nenhum alimento encontrado.
-              </p>
+              <p className="rounded-2xl bg-slate-50 px-5 py-4 text-center text-sm text-slate-400">Nenhum alimento encontrado.</p>
             </div>
           )}
         </div>
@@ -477,6 +609,8 @@ function AddFoodModal({ open, foods, onClose, onAdd }: { open: boolean; foods: F
             e.preventDefault();
             if (!quantity || Number(quantity) <= 0) { window.alert("Quantidade pendente."); return; }
             onAdd({ food: selected, quantity: Number(quantity), measure });
+            toast(`${selected.nome} adicionado ✓`);
+            haptic("medium");
             setSelected(null);
             setSearch("");
           }}

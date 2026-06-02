@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { haptic } from "../lib/haptic";
+import { useToast } from "../components/Toast";
 import {
   CheckCircle2,
   ChevronDown,
@@ -7,6 +9,7 @@ import {
   Copy,
   Dumbbell,
   FileText,
+  LayoutList,
   Pause,
   Pencil,
   Play,
@@ -86,6 +89,8 @@ export function TrainingPage({ data, actions }: { data: FitnessData; actions: Ac
   const [restTotal, setRestTotal] = useState(60);
   const [restRunning, setRestRunning] = useState(false);
   const [sessionActive, setSessionActive] = useState(false);
+  const [compactMode, setCompactMode] = useState(() => localStorage.getItem("treino-compact") === "1");
+  const toast = useToast();
 
   const plan = data.workouts.find((w) => w.day === selectedDay)!;
   const completionPlan = data.workouts.find((w) => w.day === weekdayForDate(completionDate))!;
@@ -171,14 +176,28 @@ export function TrainingPage({ data, actions }: { data: FitnessData; actions: Ac
         eyebrow="Plano semanal"
         title="Treinos"
         action={
-          <button
-            type="button"
-            aria-label="Modelos de treino"
-            className="rounded-xl bg-white/18 p-3 text-white"
-            onClick={() => setTemplatesOpen(true)}
-          >
-            <FileText size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              aria-label={compactMode ? "Modo expandido" : "Modo compacto"}
+              className={`rounded-xl p-2.5 text-white transition-colors ${compactMode ? "bg-white/30" : "bg-white/18"}`}
+              onClick={() => {
+                const next = !compactMode;
+                setCompactMode(next);
+                localStorage.setItem("treino-compact", next ? "1" : "0");
+              }}
+            >
+              <LayoutList size={18} />
+            </button>
+            <button
+              type="button"
+              aria-label="Modelos de treino"
+              className="rounded-xl bg-white/18 p-3 text-white"
+              onClick={() => setTemplatesOpen(true)}
+            >
+              <FileText size={20} />
+            </button>
+          </div>
         }
       />
 
@@ -270,7 +289,15 @@ export function TrainingPage({ data, actions }: { data: FitnessData; actions: Ac
                 completedSets={performedSets[ex.id] ?? 0}
                 isFirst={i === 0}
                 isLast={i === plan.exercises.length - 1}
-                onSetToggle={(count) => setPerformedSets((cur) => ({ ...cur, [ex.id]: count }))}
+                compact={compactMode}
+                onSetToggle={(count) => {
+                  haptic("light");
+                  setPerformedSets((cur) => ({ ...cur, [ex.id]: count }));
+                  if (count >= ex.sets && ex.sets > 0) {
+                    openRest(60);
+                    toast(`${ex.name} — descanse!`, "info");
+                  }
+                }}
                 onEdit={() => setEditor(ex)}
                 onRemove={() => saveExercises(plan.exercises.filter((e) => e.id !== ex.id))}
                 onUp={() => moveExercise(i, -1)}
@@ -542,21 +569,14 @@ function InlineSearchResults({ search, onPick }: { search: string; onPick: (name
 // Exercise card (expandable with inline set tracking)
 // ─────────────────────────────────────────────────────
 function ExerciseCard({
-  exercise,
-  completedSets,
-  isFirst,
-  isLast,
-  onSetToggle,
-  onEdit,
-  onRemove,
-  onUp,
-  onDown,
-  onRest,
+  exercise, completedSets, isFirst, isLast, compact = false,
+  onSetToggle, onEdit, onRemove, onUp, onDown, onRest,
 }: {
   exercise: WorkoutExercise;
   completedSets: number;
   isFirst: boolean;
   isLast: boolean;
+  compact?: boolean;
   onSetToggle: (count: number) => void;
   onEdit: () => void;
   onRemove: () => void;
@@ -568,6 +588,36 @@ function ExerciseCard({
   const group = getExerciseGroup(exercise.name);
   const allDone = completedSets >= exercise.sets && exercise.sets > 0;
 
+  // Compact mode: single row, tap set buttons inline
+  if (compact) {
+    return (
+      <div className={`flex items-center gap-2 rounded-2xl border px-3 py-2 ${allDone ? "border-success/40 bg-green-50/40" : "border-outline bg-white"}`}>
+        <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${allDone ? "bg-success text-white" : completedSets > 0 ? "bg-primary text-white" : "bg-slate-100 text-muted"}`}>
+          {allDone ? "✓" : completedSets > 0 ? `${completedSets}` : exercise.sets}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className={`truncate text-sm font-semibold ${allDone ? "text-success" : "text-ink"}`}>{exercise.name}</p>
+          <p className="text-[10px] text-muted">{exercise.sets}×{exercise.repetitions}{exercise.load ? ` · ${exercise.load}` : ""}</p>
+        </div>
+        <div className="flex gap-1">
+          {Array.from({ length: exercise.sets }, (_, i) => {
+            const n = i + 1;
+            const done = n <= completedSets;
+            return (
+              <button key={i} type="button"
+                className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold active:scale-90 ${done ? "bg-primary text-white" : "border border-outline bg-white text-slate-400"}`}
+                onClick={() => onSetToggle(done && n === completedSets ? completedSets - 1 : n)}
+              >
+                {done ? "✓" : n}
+              </button>
+            );
+          })}
+        </div>
+        <button type="button" className="shrink-0 text-slate-300 hover:text-primary" onClick={onEdit}><Pencil size={13} /></button>
+      </div>
+    );
+  }
+
   return (
     <article className={`overflow-hidden rounded-2xl border transition-all ${allDone ? "border-success/40 bg-green-50/40" : "border-outline bg-white"}`}>
       {/* Header row */}
@@ -576,7 +626,6 @@ function ExerciseCard({
         className="flex w-full cursor-pointer items-center gap-3 p-3.5 text-left"
         onClick={() => setExpanded((v) => !v)}
       >
-        {/* Set indicator circle */}
         <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-all ${allDone ? "bg-success text-white" : completedSets > 0 ? "bg-primary text-white" : "bg-slate-100 text-muted"}`}>
           {allDone ? <CheckCircle2 size={16} /> : completedSets > 0 ? `${completedSets}/${exercise.sets}` : exercise.sets}
         </div>
@@ -600,7 +649,6 @@ function ExerciseCard({
       {/* Expanded body */}
       {expanded && (
         <div className="border-t border-outline bg-slate-50/40 px-3.5 pb-3.5 pt-3">
-          {/* Set dots */}
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">Séries</p>
           <div className="mb-3 flex flex-wrap gap-2">
             {Array.from({ length: exercise.sets }, (_, i) => {
@@ -623,7 +671,6 @@ function ExerciseCard({
             <p className="mb-3 rounded-xl bg-primary-light px-3 py-2 text-xs text-primary">{exercise.notes}</p>
           )}
 
-          {/* Action row */}
           <div className="flex flex-wrap gap-2">
             <button type="button" className="btn-secondary flex-1 justify-center py-2 text-xs" onClick={() => onRest(60)}>
               <Timer size={13} /> Descanso

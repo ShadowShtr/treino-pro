@@ -169,6 +169,7 @@ export interface FitnessData {
   streak: StreakStats;
   profile: Profile | null;
   foods: Food[];
+  favoriteFoods: string[];
   logs: Record<string, DayLog>;
   weights: WeightEntry[];
   measurements: MeasurementEntry[];

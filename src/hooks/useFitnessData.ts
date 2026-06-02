@@ -318,7 +318,15 @@ export function useFitnessData() {
         update((cur) => ({ ...cur, foods: cur.foods.some((f) => f.id === food.id) ? cur.foods.map((f) => (f.id === food.id ? food : f)) : [...cur.foods, food] }));
       },
       deleteFood(id: string) {
-        update((cur) => ({ ...cur, foods: cur.foods.filter((f) => f.id !== id || !f.custom) }));
+        update((cur) => ({ ...cur, foods: cur.foods.filter((f) => f.id !== id || !f.custom), favoriteFoods: cur.favoriteFoods.filter((fid) => fid !== id) }));
+      },
+      toggleFavorite(id: string) {
+        update((cur) => ({
+          ...cur,
+          favoriteFoods: cur.favoriteFoods.includes(id)
+            ? cur.favoriteFoods.filter((fid) => fid !== id)
+            : [...cur.favoriteFoods, id]
+        }));
       },
       saveWorkout(day: Weekday, plan: WorkoutPlan) {
         update((cur) => ({ ...cur, workouts: cur.workouts.map((w) => (w.day === day ? plan : w)) }));

@@ -64,6 +64,7 @@ export function emptyData(): FitnessData {
     streak: { current: 0, best: 0, updatedAt: todayISO() },
     profile: null,
     foods: [...baseFoods],
+    favoriteFoods: [],
     logs: {},
     weights: [],
     measurements: [],
