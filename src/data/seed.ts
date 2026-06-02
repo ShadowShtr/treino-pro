@@ -114,6 +114,7 @@ export function demoData(): FitnessData {
     streak: { current: 0, best: 0, updatedAt: todayISO() },
     profile,
     foods: [...baseFoods],
+    favoriteFoods: [],
     logs,
     weights: [
       { id: crypto.randomUUID(), date: offsetDate(-21), weight: 84.1 },

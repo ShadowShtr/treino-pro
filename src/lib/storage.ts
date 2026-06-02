@@ -342,6 +342,7 @@ export async function parseBackup(file: File): Promise<FitnessData> {
     streak: { current: 0, best: 0, updatedAt: new Date().toISOString().slice(0, 10) },
     profile: null,
     foods: candidate.foods,
+    favoriteFoods: [],
     logs: {},
     weights: [],
     measurements: [],
