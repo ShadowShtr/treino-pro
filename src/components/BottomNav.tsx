@@ -2,12 +2,12 @@ import { Apple, ChartNoAxesColumn, Dumbbell, HeartPulse, House, UserRound } from
 import type { TabId } from "../types";
 
 const entries: { id: TabId; label: string; icon: React.ElementType }[] = [
-  { id: "home",     label: "Início",      icon: House },
-  { id: "food",     label: "Alimentação", icon: Apple },
-  { id: "training", label: "Treinos",     icon: Dumbbell },
-  { id: "cardio",   label: "Cardio",      icon: HeartPulse },
-  { id: "progress", label: "Evolução",    icon: ChartNoAxesColumn },
-  { id: "profile",  label: "Perfil",      icon: UserRound },
+  { id: "home",     label: "Início",   icon: House },
+  { id: "food",     label: "Alim.",    icon: Apple },
+  { id: "training", label: "Treinos",  icon: Dumbbell },
+  { id: "cardio",   label: "Cardio",   icon: HeartPulse },
+  { id: "progress", label: "Evolução", icon: ChartNoAxesColumn },
+  { id: "profile",  label: "Perfil",   icon: UserRound },
 ];
 
 import React from "react";
@@ -24,21 +24,16 @@ export function BottomNav({ active, onChange }: { active: TabId; onChange: (tab:
               key={id}
               aria-label={label}
               onClick={() => onChange(id)}
-              className={`flex flex-col items-center justify-center transition-all duration-200 active:scale-95 ${
-                isActive
-                  ? "gap-[3px] rounded-[14px] bg-primary px-3 py-[7px]"
-                  : "gap-0 px-2.5 py-2.5"
+              className={`flex flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 transition-colors ${
+                isActive ? "text-primary" : "text-slate-400"
               }`}
             >
-              <Icon
-                size={isActive ? 19 : 20}
-                strokeWidth={isActive ? 2.3 : 1.6}
-                className={isActive ? "text-white" : "text-slate-400"}
-              />
+              <Icon size={20} strokeWidth={isActive ? 2.3 : 1.6} />
+              <span className={`text-[9.5px] font-semibold leading-none ${isActive ? "text-primary" : "text-slate-400"}`}>
+                {label}
+              </span>
               {isActive && (
-                <span className="whitespace-nowrap text-[9.5px] font-bold leading-none text-white">
-                  {label}
-                </span>
+                <span className="mt-0.5 h-[3px] w-3 rounded-full bg-primary" />
               )}
             </button>
           );
