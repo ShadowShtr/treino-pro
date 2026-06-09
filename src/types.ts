@@ -1,4 +1,4 @@
-export type TabId = "home" | "food" | "training" | "cardio" | "progress" | "profile";
+export type TabId = "home" | "food" | "training" | "cardio" | "progress" | "tasks" | "profile";
 export type AppTheme = "light" | "dark" | "system";
 export type Objective = "manter" | "ganho_controlado" | "perda_controlada" | "recomposicao";
 export type Sex = "masculino" | "feminino";
@@ -177,6 +177,20 @@ export interface FitnessData {
   workoutTemplates: WorkoutTemplate[];
   completedWorkouts: WorkoutCompletion[];
   cardioEntries: CardioEntry[];
+  kanbanColumns: KanbanColumn[];
+}
+
+export interface KanbanTask {
+  id: string;
+  title: string;
+  description?: string;
+  createdAt: string;
+}
+
+export interface KanbanColumn {
+  id: string;
+  name: string;
+  tasks: KanbanTask[];
 }
 
 export type SyncState = "local" | "syncing" | "synced" | "pending" | "error";

@@ -21,6 +21,8 @@ import type {
   DayLog,
   FitnessData,
   Food,
+  KanbanColumn,
+  KanbanTask,
   MealItem,
   MeasurementEntry,
   Measurements,
@@ -201,8 +203,13 @@ export function useFitnessData() {
     if (pendingConflict.current) return;
     if (!hasMeaningfulLocalData(data)) return;
     if (syncTimer.current) window.clearTimeout(syncTimer.current);
+    const now = Date.now();
+    if (now - lastAutoSyncTime.current < 5000) return;
     setSyncStatus((cur) => ({ ...cur, state: "syncing", message: "Sincronizando..." }));
-    syncTimer.current = window.setTimeout(() => { syncAppData(data).then(setSyncStatus); }, 900);
+    syncTimer.current = window.setTimeout(() => {
+      lastAutoSyncTime.current = Date.now();
+      syncAppData(data).then(setSyncStatus);
+    }, 2000);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, syncStatus.authenticated]);
 
@@ -398,6 +405,58 @@ export function useFitnessData() {
         update((cur) => ({ ...cur, cardioEntries: cur.cardioEntries.filter((e) => e.id !== id) }));
       },
 
+      // ── Kanban actions ──────────────────────────────────────────────────
+      addKanbanColumn(name: string) {
+        const col: KanbanColumn = { id: crypto.randomUUID(), name, tasks: [] };
+        update((cur) => ({ ...cur, kanbanColumns: [...(cur.kanbanColumns ?? []), col] }));
+      },
+      renameKanbanColumn(id: string, name: string) {
+        update((cur) => ({ ...cur, kanbanColumns: (cur.kanbanColumns ?? []).map((c) => (c.id === id ? { ...c, name } : c)) }));
+      },
+      deleteKanbanColumn(id: string) {
+        update((cur) => ({ ...cur, kanbanColumns: (cur.kanbanColumns ?? []).filter((c) => c.id !== id) }));
+      },
+      addKanbanTask(columnId: string, title: string) {
+        const task: KanbanTask = { id: crypto.randomUUID(), title, createdAt: new Date().toISOString() };
+        update((cur) => ({
+          ...cur,
+          kanbanColumns: (cur.kanbanColumns ?? []).map((c) =>
+            c.id === columnId ? { ...c, tasks: [...c.tasks, task] } : c
+          )
+        }));
+      },
+      updateKanbanTask(columnId: string, task: KanbanTask) {
+        update((cur) => ({
+          ...cur,
+          kanbanColumns: (cur.kanbanColumns ?? []).map((c) =>
+            c.id === columnId ? { ...c, tasks: c.tasks.map((t) => (t.id === task.id ? task : t)) } : c
+          )
+        }));
+      },
+      deleteKanbanTask(columnId: string, taskId: string) {
+        update((cur) => ({
+          ...cur,
+          kanbanColumns: (cur.kanbanColumns ?? []).map((c) =>
+            c.id === columnId ? { ...c, tasks: c.tasks.filter((t) => t.id !== taskId) } : c
+          )
+        }));
+      },
+      moveKanbanTask(taskId: string, fromColumnId: string, toColumnId: string) {
+        update((cur) => {
+          const from = (cur.kanbanColumns ?? []).find((c) => c.id === fromColumnId);
+          const task = from?.tasks.find((t) => t.id === taskId);
+          if (!task) return cur;
+          return {
+            ...cur,
+            kanbanColumns: (cur.kanbanColumns ?? []).map((c) => {
+              if (c.id === fromColumnId) return { ...c, tasks: c.tasks.filter((t) => t.id !== taskId) };
+              if (c.id === toColumnId) return { ...c, tasks: [...c.tasks, task] };
+              return c;
+            })
+          };
+        });
+      },
+
       // ── Auth actions (Supabase) ───────────────────────────────────────────
       async signInWithGoogle() {
         await signInWithGoogle();
@@ -428,6 +487,9 @@ export function useFitnessData() {
         setSyncStatus(await saveCloudAppData(data, { allowEmptyOverwrite: true }));
       },
       async syncNow() {
+        const now = Date.now();
+        if (now - lastManualSyncTime.current < 10000) return;
+        lastManualSyncTime.current = now;
         setSyncStatus((cur) => ({ ...cur, state: "syncing", message: "Sincronizando..." }));
         setSyncStatus(await syncAppData(data));
       }

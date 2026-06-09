@@ -57,6 +57,12 @@ export const exampleWorkouts: WorkoutPlan[] = [
   { day: "domingo", name: "Descanso", exercises: [] }
 ];
 
+const defaultKanbanColumns = [
+  { id: "col-todo", name: "A fazer", tasks: [] },
+  { id: "col-doing", name: "Em progresso", tasks: [] },
+  { id: "col-done", name: "Concluído", tasks: [] }
+];
+
 export function emptyData(): FitnessData {
   return {
     version: 2,
@@ -71,7 +77,8 @@ export function emptyData(): FitnessData {
     workouts: exampleWorkouts,
     workoutTemplates: [],
     completedWorkouts: [],
-    cardioEntries: []
+    cardioEntries: [],
+    kanbanColumns: defaultKanbanColumns.map(c => ({ ...c }))
   };
 }
 
@@ -166,6 +173,7 @@ export function demoData(): FitnessData {
         exercises: workout.exercises.map((entry) => ({ ...entry, id: crypto.randomUUID() }))
       };
     }),
-    cardioEntries: []
+    cardioEntries: [],
+    kanbanColumns: defaultKanbanColumns.map(c => ({ ...c }))
   };
 }

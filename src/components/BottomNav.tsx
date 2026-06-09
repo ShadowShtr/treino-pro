@@ -1,4 +1,5 @@
-import { Apple, ChartNoAxesColumn, Dumbbell, HeartPulse, House, UserRound } from "lucide-react";
+import React from "react";
+import { Apple, ChartNoAxesColumn, ClipboardList, Dumbbell, HeartPulse, House, UserRound } from "lucide-react";
 import type { TabId } from "../types";
 
 const entries: { id: TabId; label: string; icon: React.ElementType }[] = [
@@ -7,10 +8,9 @@ const entries: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: "training", label: "Treinos",  icon: Dumbbell },
   { id: "cardio",   label: "Cardio",   icon: HeartPulse },
   { id: "progress", label: "Evolução", icon: ChartNoAxesColumn },
+  { id: "tasks",    label: "Tarefas",  icon: ClipboardList },
   { id: "profile",  label: "Perfil",   icon: UserRound },
 ];
-
-import React from "react";
 
 export function BottomNav({ active, onChange }: { active: TabId; onChange: (tab: TabId) => void }) {
   return (

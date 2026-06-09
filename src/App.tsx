@@ -8,6 +8,7 @@ import { HomePage } from "./pages/HomePage";
 import { CardioPage } from "./pages/CardioPage";
 import { Onboarding } from "./pages/Onboarding";
 import { ProfilePage } from "./pages/ProfilePage";
+import { TasksPage } from "./pages/TasksPage";
 import { TrainingPage } from "./pages/TrainingPage";
 import type { TabId } from "./types";
 
@@ -15,7 +16,7 @@ const ProgressPage = lazy(() =>
   import("./pages/ProgressPage").then((m) => ({ default: m.ProgressPage }))
 );
 
-const TAB_ORDER: TabId[] = ["home", "food", "training", "cardio", "progress", "profile"];
+const TAB_ORDER: TabId[] = ["home", "food", "training", "cardio", "progress", "tasks", "profile"];
 
 function ProgressSkeleton() {
   return (
@@ -59,7 +60,7 @@ export default function App() {
   function handleTouchEnd(e: React.TouchEvent) {
     const dx = e.changedTouches[0].clientX - touchStartX.current;
     const dy = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
-    if (Math.abs(dx) < 60 || dy > 40) return; // too short or too vertical
+    if (Math.abs(dx) < 60 || dy > 40) return;
     const idx = TAB_ORDER.indexOf(tab);
     if (dx < 0 && idx < TAB_ORDER.length - 1) setTab(TAB_ORDER[idx + 1]);
     if (dx > 0 && idx > 0) setTab(TAB_ORDER[idx - 1]);
@@ -96,6 +97,7 @@ export default function App() {
               <ProgressPage data={data} />
             </Suspense>
           )}
+          {tab === "tasks"   && <TasksPage    data={data} actions={actions} />}
           {tab === "profile"  && <ProfilePage  data={data} actions={actions} syncStatus={syncStatus} />}
         </main>
         <BottomNav active={tab} onChange={setTab} />
