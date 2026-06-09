@@ -45,6 +45,7 @@ interface StoredData {
     exercises: (string | Partial<WorkoutExercise>)[];
   }[];
   cardioEntries?: Partial<CardioEntry>[];
+  kanbanColumns?: unknown[];
 }
 
 function sanitizeText(value: unknown, maxLength = 120): string {
@@ -275,7 +276,21 @@ export function migrateData(raw: StoredData, fallback: FitnessData): FitnessData
       treadmillMode: entry.treadmillMode === "corrida" ? "corrida" : entry.treadmillMode === "caminhada" ? "caminhada" : undefined,
       notes: sanitizeText(entry.notes, 180),
       explanation: sanitizeText(entry.explanation, 260)
-    }))
+    })),
+    kanbanColumns: Array.isArray(raw.kanbanColumns)
+      ? (raw.kanbanColumns as { id: unknown; name: unknown; tasks: unknown }[]).map((col) => ({
+          id: typeof col.id === "string" ? col.id : crypto.randomUUID(),
+          name: typeof col.name === "string" ? col.name.slice(0, 80) : "Coluna",
+          tasks: Array.isArray(col.tasks)
+            ? (col.tasks as { id: unknown; title: unknown; description: unknown; createdAt: unknown }[]).map((t) => ({
+                id: typeof t.id === "string" ? t.id : crypto.randomUUID(),
+                title: typeof t.title === "string" ? t.title.slice(0, 200) : "Tarefa",
+                description: typeof t.description === "string" ? t.description.slice(0, 2000) : undefined,
+                createdAt: typeof t.createdAt === "string" ? t.createdAt : new Date().toISOString()
+              }))
+            : []
+        }))
+      : fallback.kanbanColumns
   };
 }
 
@@ -349,6 +364,7 @@ export async function parseBackup(file: File): Promise<FitnessData> {
     workouts: [],
     workoutTemplates: [],
     completedWorkouts: [],
-    cardioEntries: []
+    cardioEntries: [],
+    kanbanColumns: []
   });
 }

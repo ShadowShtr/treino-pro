@@ -102,6 +102,8 @@ export function useFitnessData() {
   const readyForCloudSync = useRef(false);
   const restoringFromCloud = useRef(false);
   const pendingConflict = useRef(false);
+  const lastAutoSyncTime = useRef<number>(0);
+  const lastManualSyncTime = useRef<number>(0);
 
   function sameData(a: FitnessData | null, b: FitnessData | null) {
     return JSON.stringify(a) === JSON.stringify(b);
