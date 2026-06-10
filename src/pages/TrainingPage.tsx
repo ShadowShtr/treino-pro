@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState, type FormEvent } from "react";
 import { haptic } from "../lib/haptic";
 import { useToast } from "../components/Toast";
 import {
+  BookOpen,
   CheckCircle2,
   ChevronDown,
   ChevronLeft,
@@ -9,6 +10,7 @@ import {
   Copy,
   Dumbbell,
   FileText,
+  HelpCircle,
   LayoutList,
   Pause,
   Pencil,
@@ -22,35 +24,24 @@ import {
   X,
 } from "lucide-react";
 import { exerciseGroups } from "../data/exercises";
+import { GROUP_COLORS, getExerciseGroup, getExerciseInfo } from "../data/exerciseLibrary";
+import { ExerciseAnimation } from "../components/ExerciseAnimation";
 import { Card, Empty, Modal, PageHeader, SectionTitle } from "../components/Ui";
 import { formatDate, todayISO, weekdayForDate, weekdays } from "../lib/date";
 import type { useFitnessData } from "../hooks/useFitnessData";
 import type { FitnessData, Weekday, WorkoutExercise, WorkoutTemplate } from "../types";
 
-type Actions = ReturnType<typeof useFitnessData>["actions"];
+const ExerciseLibraryModal = lazy(() =>
+  import("../components/ExerciseLibraryModal").then((m) => ({ default: m.ExerciseLibraryModal }))
+);
+const ExerciseDetailModal = lazy(() =>
+  import("../components/ExerciseDetailModal").then((m) => ({ default: m.ExerciseDetailModal }))
+);
 
-const GROUP_COLORS: Record<string, string> = {
-  Peito: "bg-red-100 text-red-700",
-  Costas: "bg-blue-100 text-blue-700",
-  Pernas: "bg-green-100 text-green-700",
-  Ombros: "bg-purple-100 text-purple-700",
-  Bíceps: "bg-orange-100 text-orange-700",
-  Tríceps: "bg-yellow-100 text-yellow-700",
-  "Abdômen": "bg-teal-100 text-teal-700",
-  "Glúteos": "bg-pink-100 text-pink-700",
-  Panturrilha: "bg-indigo-100 text-indigo-700",
-  Cardio: "bg-slate-100 text-slate-700",
-};
+type Actions = ReturnType<typeof useFitnessData>["actions"];
 
 function emptyExercise(name = ""): WorkoutExercise {
   return { id: crypto.randomUUID(), name, sets: 3, repetitions: "10-12", load: "", notes: "" };
-}
-
-function getExerciseGroup(name: string): string {
-  for (const { group, exercises } of exerciseGroups) {
-    if (exercises.includes(name)) return group;
-  }
-  return "";
 }
 
 function formatTimer(seconds: number): string {
@@ -90,6 +81,8 @@ export function TrainingPage({ data, actions }: { data: FitnessData; actions: Ac
   const [restRunning, setRestRunning] = useState(false);
   const [sessionActive, setSessionActive] = useState(false);
   const [compactMode, setCompactMode] = useState(() => localStorage.getItem("treino-compact") === "1");
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [detailName, setDetailName] = useState<string | null>(null);
   const toast = useToast();
 
   const plan = data.workouts.find((w) => w.day === selectedDay)!;
@@ -188,6 +181,14 @@ export function TrainingPage({ data, actions }: { data: FitnessData; actions: Ac
               }}
             >
               <LayoutList size={18} />
+            </button>
+            <button
+              type="button"
+              aria-label="Biblioteca de exercícios"
+              className="rounded-xl bg-white/18 p-3 text-white"
+              onClick={() => { haptic("light"); setLibraryOpen(true); }}
+            >
+              <BookOpen size={20} />
             </button>
             <button
               type="button"
@@ -303,6 +304,7 @@ export function TrainingPage({ data, actions }: { data: FitnessData; actions: Ac
                 onUp={() => moveExercise(i, -1)}
                 onDown={() => moveExercise(i, 1)}
                 onRest={openRest}
+                onInfo={() => { haptic("light"); setDetailName(ex.name); }}
               />
             ))}
           </div>
@@ -513,8 +515,26 @@ export function TrainingPage({ data, actions }: { data: FitnessData; actions: Ac
           onClose={() => setSessionActive(false)}
           onComplete={() => { actions.completeWorkout(completionDate); setSessionActive(false); setPerformedSets({}); }}
           onOpenRest={openRest}
+          onInfo={(name) => setDetailName(name)}
         />
       )}
+
+      {/* ── Exercise library & detail (lazy) ── */}
+      <Suspense fallback={null}>
+        {libraryOpen && (
+          <ExerciseLibraryModal
+            open
+            onClose={() => setLibraryOpen(false)}
+            onAdd={(name) => {
+              saveExercise(emptyExercise(name));
+              toast(`${name} adicionado ao treino`, "success");
+            }}
+          />
+        )}
+        {detailName && (
+          <ExerciseDetailModal name={detailName} open onClose={() => setDetailName(null)} />
+        )}
+      </Suspense>
     </>
   );
 }
@@ -570,7 +590,7 @@ function InlineSearchResults({ search, onPick }: { search: string; onPick: (name
 // ─────────────────────────────────────────────────────
 function ExerciseCard({
   exercise, completedSets, isFirst, isLast, compact = false,
-  onSetToggle, onEdit, onRemove, onUp, onDown, onRest,
+  onSetToggle, onEdit, onRemove, onUp, onDown, onRest, onInfo,
 }: {
   exercise: WorkoutExercise;
   completedSets: number;
@@ -583,9 +603,11 @@ function ExerciseCard({
   onUp: () => void;
   onDown: () => void;
   onRest: (seconds?: number) => void;
+  onInfo: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const group = getExerciseGroup(exercise.name);
+  const info = getExerciseInfo(exercise.name);
   const allDone = completedSets >= exercise.sets && exercise.sets > 0;
 
   // Compact mode: single row, tap set buttons inline
@@ -613,6 +635,11 @@ function ExerciseCard({
             );
           })}
         </div>
+        {info && (
+          <button type="button" className="shrink-0 text-slate-300 hover:text-primary" onClick={onInfo} aria-label="Como fazer">
+            <HelpCircle size={13} />
+          </button>
+        )}
         <button type="button" className="shrink-0 text-slate-300 hover:text-primary" onClick={onEdit}><Pencil size={13} /></button>
       </div>
     );
@@ -649,6 +676,20 @@ function ExerciseCard({
       {/* Expanded body */}
       {expanded && (
         <div className="border-t border-outline bg-slate-50/40 px-3.5 pb-3.5 pt-3">
+          {info && (
+            <button
+              type="button"
+              onClick={onInfo}
+              className="mb-3 flex w-full items-center gap-3 rounded-2xl border border-outline bg-white p-2.5 text-left"
+            >
+              <ExerciseAnimation images={info.images} alt={exercise.name} size="thumb" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold text-ink">Como fazer</p>
+                <p className="text-[11px] text-muted">Ver demonstração, músculos e dicas</p>
+              </div>
+              <HelpCircle size={16} className="shrink-0 text-primary" />
+            </button>
+          )}
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">Séries</p>
           <div className="mb-3 flex flex-wrap gap-2">
             {Array.from({ length: exercise.sets }, (_, i) => {
@@ -705,6 +746,7 @@ function WorkoutSession({
   onClose,
   onComplete,
   onOpenRest,
+  onInfo,
 }: {
   exercises: WorkoutExercise[];
   workoutName: string;
@@ -713,11 +755,13 @@ function WorkoutSession({
   onClose: () => void;
   onComplete: () => void;
   onOpenRest: (seconds?: number) => void;
+  onInfo: (name: string) => void;
 }) {
   const [index, setIndex] = useState(0);
   const exercise = exercises[index];
   const completedSets = performedSets[exercise.id] ?? 0;
   const group = getExerciseGroup(exercise.name);
+  const info = getExerciseInfo(exercise.name);
   const allDone = exercises.every((ex) => (performedSets[ex.id] ?? 0) >= ex.sets);
 
   function toggleSet(n: number) {
@@ -770,6 +814,20 @@ function WorkoutSession({
             {exercise.load ? ` · ${exercise.load}` : ""}
           </p>
         </div>
+
+        {/* Exercise demo */}
+        {info && (
+          <div className="mb-5">
+            <ExerciseAnimation key={exercise.id} images={info.images} alt={exercise.name} size="full" />
+            <button
+              type="button"
+              className="btn-secondary mt-3 w-full justify-center py-2.5 text-sm"
+              onClick={() => onInfo(exercise.name)}
+            >
+              <HelpCircle size={15} /> Como fazer este exercício
+            </button>
+          </div>
+        )}
 
         {/* Set grid */}
         <div className="mb-5 rounded-3xl border border-outline bg-white p-4">
@@ -1004,7 +1062,15 @@ function ExercisePickerModal({
       <div className="max-h-64 overflow-y-auto space-y-1">
         {results.map(({ name, group }) => (
           <button key={name} type="button" className="selection-row" onClick={() => onPick(name)}>
-            <span>{name}</span>
+            <div className="flex min-w-0 items-center gap-2.5">
+              <ExerciseAnimation
+                images={getExerciseInfo(name)?.images}
+                alt={name}
+                size="thumb"
+                className="!h-10 !w-10 !rounded-xl"
+              />
+              <span className="truncate">{name}</span>
+            </div>
             <div className="flex shrink-0 items-center gap-2">
               {search && (
                 <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${GROUP_COLORS[group] ?? "bg-slate-100 text-slate-600"}`}>

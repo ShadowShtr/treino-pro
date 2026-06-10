@@ -9,6 +9,7 @@ PWA mobile-first para controle pessoal de alimentacao, peso, medidas, agua e tre
 - Metas diarias calculadas a partir de TMB, gasto diario, objetivo e peso corporal.
 - Tres refeicoes por dia, alimentos internos e personalizados, creatina e agua diaria.
 - Treinos semanais com series, repeticoes, carga opcional, observacao, reordenacao e copia entre dias.
+- Biblioteca de exercicios com demonstracao visual: animacao do movimento (2 fotos em crossfade), musculos trabalhados, passo a passo e dicas de execucao para ~120 exercicios. Ver `docs/biblioteca-exercicios/README.md`.
 - Registo rapido de series executadas na sessao e temporizador simples de descanso.
 - Evolucao com graficos, calendario mensal e relatorio PDF.
 - PWA instalavel, com suporte offline apos a primeira abertura.

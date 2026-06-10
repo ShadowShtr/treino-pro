@@ -36,7 +36,23 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: "/index.html",
-        globPatterns: ["**/*.{js,css,html,ico,png,svg}"]
+        globPatterns: ["**/*.{js,css,html,ico,png,svg}"],
+        runtimeCaching: [
+          {
+            // Fotos da biblioteca de exercícios (free-exercise-db via jsDelivr):
+            // cache-first para funcionarem offline depois de vistas uma vez.
+            urlPattern: /^https:\/\/cdn\.jsdelivr\.net\/gh\/yuhonas\/free-exercise-db@.*\.jpg$/,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "exercise-images",
+              expiration: {
+                maxEntries: 300,
+                maxAgeSeconds: 60 * 60 * 24 * 90 // 90 dias
+              },
+              cacheableResponse: { statuses: [0, 200] }
+            }
+          }
+        ]
       }
     })
   ]
