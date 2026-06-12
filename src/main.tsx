@@ -4,7 +4,14 @@ import { registerSW } from "virtual:pwa-register";
 import App from "./App";
 import "./index.css";
 
-registerSW({ immediate: true });
+// Força recarga automática quando uma nova versão do service worker estiver pronta.
+// Sem isto, o app PWA instalado pode ficar servindo a versão antiga indefinidamente.
+const updateSW = registerSW({
+  immediate: true,
+  onNeedRefresh() {
+    updateSW(true);
+  },
+});
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
