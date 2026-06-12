@@ -8,7 +8,6 @@ import { HomePage } from "./pages/HomePage";
 import { CardioPage } from "./pages/CardioPage";
 import { Onboarding } from "./pages/Onboarding";
 import { ProfilePage } from "./pages/ProfilePage";
-import { TasksPage } from "./pages/TasksPage";
 import { TrainingPage } from "./pages/TrainingPage";
 import type { TabId } from "./types";
 
@@ -16,7 +15,7 @@ const ProgressPage = lazy(() =>
   import("./pages/ProgressPage").then((m) => ({ default: m.ProgressPage }))
 );
 
-const TAB_ORDER: TabId[] = ["home", "food", "training", "cardio", "progress", "tasks", "profile"];
+const TAB_ORDER: TabId[] = ["home", "food", "training", "cardio", "progress", "profile"];
 
 function ProgressSkeleton() {
   return (
@@ -87,7 +86,7 @@ export default function App() {
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
-        <main className="mx-auto max-w-lg px-4 pb-[calc(86px+env(safe-area-inset-bottom))] pt-[max(12px,env(safe-area-inset-top))]">
+        <main className="mx-auto max-w-lg px-4 pb-[calc(100px+env(safe-area-inset-bottom))] pt-[max(12px,env(safe-area-inset-top))]">
           {tab === "home"     && <HomePage     data={data} actions={actions} setTab={setTab} />}
           {tab === "food"     && <FoodPage     data={data} actions={actions} />}
           {tab === "training" && <TrainingPage data={data} actions={actions} />}
@@ -97,7 +96,6 @@ export default function App() {
               <ProgressPage data={data} />
             </Suspense>
           )}
-          {tab === "tasks"   && <TasksPage    data={data} actions={actions} />}
           {tab === "profile"  && <ProfilePage  data={data} actions={actions} syncStatus={syncStatus} />}
         </main>
         <BottomNav active={tab} onChange={setTab} />

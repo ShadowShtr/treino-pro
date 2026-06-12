@@ -75,7 +75,7 @@ export function Modal({
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-slate-950/35 p-3 sm:items-center sm:justify-center">
-      <div className="flex max-h-[88svh] w-full max-w-md flex-col overflow-hidden rounded-[28px] bg-white shadow-xl">
+      <div className="flex max-h-[88svh] w-full max-w-md flex-col overflow-hidden rounded-[30px] bg-white shadow-card">
         <div className="flex flex-shrink-0 items-center justify-between border-b border-outline px-5 py-4">
           <h2 className="text-lg font-semibold">{title}</h2>
           <button type="button" className="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-600" onClick={onClose}>

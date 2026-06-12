@@ -1,4 +1,4 @@
-export type TabId = "home" | "food" | "training" | "cardio" | "progress" | "tasks" | "profile";
+export type TabId = "home" | "food" | "training" | "cardio" | "progress" | "profile";
 export type AppTheme = "light" | "dark" | "system";
 export type Objective = "manter" | "ganho_controlado" | "perda_controlada" | "recomposicao";
 export type Sex = "masculino" | "feminino";

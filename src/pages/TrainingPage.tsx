@@ -22,6 +22,7 @@ import {
   X,
 } from "lucide-react";
 import { exerciseGroups } from "../data/exercises";
+import { ExerciseAnim, ExerciseThumb } from "../components/ExerciseMedia";
 import { Card, Empty, Modal, PageHeader, SectionTitle } from "../components/Ui";
 import { formatDate, todayISO, weekdayForDate, weekdays } from "../lib/date";
 import type { useFitnessData } from "../hooks/useFitnessData";
@@ -548,8 +549,11 @@ function InlineSearchResults({ search, onPick }: { search: string; onPick: (name
         <div className="space-y-1">
           {results.map(({ name, group }) => (
             <button key={name} type="button" className="selection-row" onClick={() => onPick(name)}>
-              <span>{name}</span>
-              <div className="flex items-center gap-2">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <ExerciseThumb name={name} />
+                <span className="truncate">{name}</span>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
                 <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${GROUP_COLORS[group] ?? "bg-slate-100 text-slate-600"}`}>
                   {group}
                 </span>
@@ -649,6 +653,7 @@ function ExerciseCard({
       {/* Expanded body */}
       {expanded && (
         <div className="border-t border-outline bg-slate-50/40 px-3.5 pb-3.5 pt-3">
+          <ExerciseAnim name={exercise.name} className="mb-3" />
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">Séries</p>
           <div className="mb-3 flex flex-wrap gap-2">
             {Array.from({ length: exercise.sets }, (_, i) => {
@@ -770,6 +775,9 @@ function WorkoutSession({
             {exercise.load ? ` · ${exercise.load}` : ""}
           </p>
         </div>
+
+        {/* Demonstração do exercício */}
+        <ExerciseAnim name={exercise.name} className="exercise-anim-lg mb-5" />
 
         {/* Set grid */}
         <div className="mb-5 rounded-3xl border border-outline bg-white p-4">
@@ -1004,7 +1012,10 @@ function ExercisePickerModal({
       <div className="max-h-64 overflow-y-auto space-y-1">
         {results.map(({ name, group }) => (
           <button key={name} type="button" className="selection-row" onClick={() => onPick(name)}>
-            <span>{name}</span>
+            <div className="flex min-w-0 items-center gap-2.5">
+              <ExerciseThumb name={name} />
+              <span className="truncate">{name}</span>
+            </div>
             <div className="flex shrink-0 items-center gap-2">
               {search && (
                 <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${GROUP_COLORS[group] ?? "bg-slate-100 text-slate-600"}`}>
