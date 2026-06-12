@@ -22,7 +22,7 @@ import {
   X,
 } from "lucide-react";
 import { exerciseGroups } from "../data/exercises";
-import { ExerciseAnim, ExerciseThumb } from "../components/ExerciseMedia";
+import { ExerciseAnim, ExerciseThumb, ExerciseTips } from "../components/ExerciseMedia";
 import { Card, Empty, Modal, PageHeader, SectionTitle } from "../components/Ui";
 import { formatDate, todayISO, weekdayForDate, weekdays } from "../lib/date";
 import type { useFitnessData } from "../hooks/useFitnessData";
@@ -654,6 +654,7 @@ function ExerciseCard({
       {expanded && (
         <div className="border-t border-outline bg-slate-50/40 px-3.5 pb-3.5 pt-3">
           <ExerciseAnim name={exercise.name} className="mb-3" />
+          <ExerciseTips name={exercise.name} className="mb-3" />
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">Séries</p>
           <div className="mb-3 flex flex-wrap gap-2">
             {Array.from({ length: exercise.sets }, (_, i) => {
@@ -777,7 +778,8 @@ function WorkoutSession({
         </div>
 
         {/* Demonstração do exercício */}
-        <ExerciseAnim name={exercise.name} className="exercise-anim-lg mb-5" />
+        <ExerciseAnim name={exercise.name} className="exercise-anim-lg mb-3" />
+        <ExerciseTips name={exercise.name} className="mb-5" />
 
         {/* Set grid */}
         <div className="mb-5 rounded-3xl border border-outline bg-white p-4">

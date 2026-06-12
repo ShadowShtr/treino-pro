@@ -519,6 +519,22 @@ select:focus {
   border-radius: 26px;
 }
 
+/* Quadros SVG locais (fundo branco fixo, traço escuro fixo) */
+.exercise-anim-svg {
+  position: absolute;
+  inset: 0;
+  padding: 8%;
+  color: #43342a;
+  background: #fff;
+  transition: opacity .35s ease;
+}
+
+.exercise-thumb-svg {
+  display: block;
+  padding: 4px;
+  color: #43342a;
+}
+
 .exercise-thumb {
   width: 44px;
   height: 44px;

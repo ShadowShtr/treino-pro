@@ -111,7 +111,6 @@ const MEDIA_IDS: Record<string, string> = {
   "Crunch na máquina": "Ab_Crunch_Machine",
   "Abdominal no cabo": "Cable_Crunch",
   "Mountain climber": "Mountain_Climbers",
-  "Hollow body": "Flutter_Kicks",
 
   // ── Glúteos ──
   "Elevação pélvica": "Butt_Lift_Bridge",
@@ -138,9 +137,7 @@ const MEDIA_IDS: Record<string, string> = {
   "Escada": "Stairmaster",
   "Remo ergométrico": "Rowing_Stationary",
   "Corda náutica": "Battling_Ropes",
-  "Burpee": "Freehand_Jump_Squat",
   "Jump": "Bench_Jump",
-  "Polichinelo": "Star_Jump",
   "Corrida": "Jogging_Treadmill",
   "Mountain Climber": "Mountain_Climbers",
   "HIIT": "Fast_Skipping",
@@ -208,6 +205,190 @@ const ALIASES: Record<string, string> = {
   "remo": "Rowing_Stationary",
   "abdominal canivete": "Jackknife_Sit-Up",
   "sit up": "Sit-Up",
+};
+
+// ─────────────────────────────────────────────────────
+// Quadros SVG desenhados localmente para exercícios que
+// não têm foto fiel no catálogo (bonecos posição a posição).
+// Chaves normalizadas (minúsculas, sem acento).
+// ─────────────────────────────────────────────────────
+const fig = (body: string) =>
+  `<svg viewBox="0 0 200 190" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+
+const GROUND = `<path d="M18 182 H182" stroke-width="4" opacity="0.18"/>`;
+const GROUND_LOW = `<path d="M18 176 H182" stroke-width="4" opacity="0.18"/>`;
+
+const STANDING = `${GROUND}<circle cx="100" cy="40" r="15"/><path d="M100 58 V120"/><path d="M100 74 L74 114"/><path d="M100 74 L126 114"/><path d="M100 120 L88 180"/><path d="M100 120 L112 180"/>`;
+
+const SVG_FRAMES: Record<string, string[]> = {
+  polichinelo: [
+    fig(STANDING),
+    fig(
+      `${GROUND}<circle cx="100" cy="34" r="15"/><path d="M100 52 V116"/><path d="M100 68 L64 30"/><path d="M100 68 L136 30"/><path d="M100 116 L68 180"/><path d="M100 116 L132 180"/>`
+    ),
+  ],
+  burpee: [
+    fig(STANDING),
+    fig(
+      `${GROUND}<circle cx="84" cy="96" r="14"/><path d="M92 106 L108 138"/><path d="M96 114 L88 180"/><path d="M108 138 L134 156 L130 180"/>`
+    ),
+    fig(
+      `${GROUND}<circle cx="156" cy="112" r="13"/><path d="M146 122 L48 164"/><path d="M140 126 L142 180"/><path d="M48 164 L40 180"/>`
+    ),
+    fig(
+      `${GROUND}<circle cx="100" cy="26" r="15"/><path d="M100 44 V100"/><path d="M100 58 L66 22"/><path d="M100 58 L134 22"/><path d="M100 100 L84 142"/><path d="M100 100 L116 142"/>`
+    ),
+  ],
+  "hollow body": [
+    fig(`${GROUND_LOW}<circle cx="40" cy="160" r="13"/><path d="M54 162 H172"/>`),
+    fig(
+      `${GROUND_LOW}<circle cx="48" cy="134" r="13"/><path d="M60 142 Q96 162 122 156"/><path d="M122 156 L170 130"/><path d="M60 142 L28 112"/>`
+    ),
+  ],
+};
+
+// ─────────────────────────────────────────────────────
+// Dicas curtas por exercício — só o essencial para executar
+// bem, sem texto longo. Complementam a demonstração visual.
+// ─────────────────────────────────────────────────────
+const TIPS: Record<string, string[]> = {
+  // ── Peito ──
+  "Supino reto": ["Desça a barra devagar até ao meio do peito", "Empurre para cima sem bloquear os cotovelos"],
+  "Supino inclinado": ["Banco inclinado a 30–45°", "A barra desce até à parte alta do peito"],
+  "Supino declinado": ["Banco declinado, pés presos", "Desça a barra até à parte baixa do peito"],
+  "Supino reto com halteres": ["Desça os halteres ao lado do peito", "Suba juntando-os no topo"],
+  "Supino inclinado com halteres": ["Banco a 30–45°", "Cotovelos a ~45° do tronco"],
+  "Crucifixo reto": ["Braços quase esticados, abra em arco", "Feche como se abraçasse uma árvore"],
+  "Crucifixo inclinado": ["Banco inclinado", "Abra em arco e volte devagar"],
+  "Crossover alto": ["Polias acima da cabeça", "Puxe em arco até as mãos quase se cruzarem"],
+  "Crossover baixo": ["Polias em baixo", "Puxe para cima e para dentro"],
+  "Crossover neutro": ["Polias à altura do peito", "Junte as mãos à frente do peito"],
+  "Peck deck": ["Costas bem apoiadas no banco", "Feche os braços à frente e volte devagar"],
+  "Flexão de braço": ["Corpo reto da cabeça aos pés", "Desça até o peito quase tocar o chão"],
+  "Flexão inclinada": ["Mãos num banco ou apoio alto", "Versão mais fácil — ideal para começar"],
+  "Flexão declinada": ["Pés elevados num banco", "Versão mais difícil — parte alta do peito"],
+  "Pullover": ["Deitado, haltere sobre o peito", "Leve atrás da cabeça e volte"],
+  "Cable fly": ["Deitado entre as polias", "Feche os braços em arco sobre o peito"],
+
+  // ── Costas ──
+  "Puxada alta": ["Pegada larga", "Puxe a barra até ao topo do peito"],
+  "Puxada frente": ["Peito aberto, tronco ligeiramente inclinado", "Puxe até ao peito e suba devagar"],
+  "Puxada triângulo": ["Pegada no triângulo", "Cotovelos junto ao corpo"],
+  "Puxada neutro": ["Pegada fechada", "Cotovelos para baixo e para trás"],
+  "Remada baixa": ["Costas direitas", "Puxe ao abdómen e aperte as escápulas"],
+  "Remada curvada": ["Tronco inclinado, costas retas", "Puxe a barra até ao abdómen"],
+  "Remada unilateral": ["Joelho e mão apoiados no banco", "Puxe o haltere até à cintura"],
+  "Remada cavalinho": ["Tronco inclinado sobre a barra", "Puxe ao peito apertando as costas"],
+  "Remada máquina": ["Peito apoiado", "Puxe e aperte as escápulas atrás"],
+  "Remada Yates": ["Tronco a ~45°, pegada supinada", "Puxe a barra à cintura"],
+  "Pulldown": ["Braços quase esticados", "Empurre a barra até às coxas"],
+  "Barra fixa": ["Pegada mais larga que os ombros", "Suba até o queixo passar a barra"],
+  "Barra fixa supinada": ["Palmas viradas para si", "Mais bíceps — suba controlado"],
+  "Levantamento terra": ["Costas retas, barra junto às pernas", "Empurre o chão com as pernas"],
+  "Face pull": ["Corda à altura do rosto", "Puxe para a testa abrindo os cotovelos"],
+  "Serrátil": ["Braços esticados para cima", "Empurre os ombros para a frente no topo"],
+
+  // ── Pernas ──
+  "Agachamento livre": ["Pés à largura dos ombros", "Desça como se fosse sentar numa cadeira"],
+  "Agachamento sumô": ["Pés bem afastados, pontas para fora", "Tronco direito durante a descida"],
+  "Agachamento goblet": ["Haltere junto ao peito", "Ótimo para aprender a agachar"],
+  "Leg press": ["Pés à largura dos ombros na plataforma", "Não bloqueie os joelhos no topo"],
+  "Leg press 45°": ["Desça até ~90° nos joelhos", "Empurre com os calcanhares"],
+  "Hack machine": ["Costas apoiadas na máquina", "Desça controlado até ~90°"],
+  "Cadeira extensora": ["Estique as pernas até ao topo", "Desça devagar, sem deixar cair"],
+  "Mesa flexora": ["Deitado, leve os calcanhares ao glúteo", "Suba e desça controlado"],
+  "Cadeira flexora": ["Sentado, dobre os joelhos para trás", "Segure 1s em baixo"],
+  "Stiff": ["Pernas quase esticadas", "Desça sentindo o posterior da coxa"],
+  "Afundo": ["Passo à frente, joelho de trás desce", "Tronco sempre direito"],
+  "Passada": ["Passos alternados em movimento", "Joelho da frente alinhado com o pé"],
+  "Avanço com barra": ["Barra apoiada nas costas", "Passo à frente e volte com força"],
+  "Step up": ["Suba o banco com um pé", "Empurre com o calcanhar de cima"],
+  "Agachamento búlgaro": ["Pé de trás apoiado no banco", "Desça com o tronco direito"],
+  "Leg curl deitado": ["Calcanhares em direção ao glúteo", "Não levante a anca do banco"],
+
+  // ── Ombros ──
+  "Desenvolvimento com barra": ["Barra à altura dos ombros", "Empurre acima da cabeça sem arquear as costas"],
+  "Desenvolvimento com halteres": ["Halteres à altura das orelhas", "Suba até quase esticar os braços"],
+  "Arnold press": ["Comece com as palmas viradas para si", "Rode os pulsos enquanto sobe"],
+  "Desenvolvimento na máquina": ["Costas apoiadas", "Empurre para cima e desça devagar"],
+  "Elevação lateral": ["Suba até à linha dos ombros", "Cotovelos ligeiramente dobrados"],
+  "Elevação lateral máquina": ["Suba até à linha dos ombros", "Desça devagar, sem deixar cair"],
+  "Elevação frontal": ["Suba à frente até à altura dos ombros", "Desça devagar, sem balançar"],
+  "Elevação frontal com cabo": ["Cabo na posição baixa", "Suba à frente sem balançar o corpo"],
+  "Crucifixo inverso": ["Tronco inclinado à frente", "Abra os braços para trás"],
+  "Crucifixo inverso máquina": ["Peito apoiado", "Abra os braços para trás devagar"],
+  "Remada alta": ["Puxe a barra até ao peito", "Cotovelos sempre acima das mãos"],
+  "Encolhimento": ["Encolha os ombros para cima", "Segure 1s e desça"],
+
+  // ── Bíceps ──
+  "Rosca direta": ["Cotovelos colados ao tronco", "Suba a barra sem balançar o corpo"],
+  "Rosca direta com halteres": ["Os dois halteres sobem juntos", "Desça devagar até esticar"],
+  "Rosca alternada": ["Um braço de cada vez", "Rode a palma para cima ao subir"],
+  "Rosca martelo": ["Palmas viradas uma para a outra", "Cotovelos fixos junto ao corpo"],
+  "Rosca Scott": ["Braços apoiados no banco Scott", "Desça quase até esticar"],
+  "Rosca concentrada": ["Cotovelo apoiado na coxa", "Suba devagar e aperte em cima"],
+  "Rosca 21": ["7 meias-repetições em baixo + 7 em cima + 7 completas", "Use carga leve"],
+  "Rosca no cabo": ["Cotovelos junto ao corpo", "Tensão constante — desça devagar"],
+  "Rosca inversa": ["Palmas viradas para baixo", "Trabalha antebraço e bíceps"],
+
+  // ── Tríceps ──
+  "Tríceps pulley": ["Cotovelos colados ao tronco", "Empurre até esticar e volte devagar"],
+  "Tríceps corda": ["Abra a corda no final do movimento", "Só o antebraço se move"],
+  "Tríceps barra": ["Pegada na barra", "Empurre até esticar os braços"],
+  "Tríceps testa": ["Deitado, desça a barra até à testa", "Cotovelos apontados para cima"],
+  "Tríceps testa com halteres": ["Desça os halteres ao lado da cabeça", "Cotovelos fixos"],
+  "Tríceps francês": ["Haltere atrás da cabeça", "Estique os braços para cima"],
+  "Paralelas": ["Desça até ~90° nos cotovelos", "Tronco direito foca mais o tríceps"],
+  "Tríceps coice": ["Tronco inclinado, cotovelo alto", "Estique o braço para trás"],
+  "Tríceps máquina": ["Cotovelos apoiados", "Empurre até esticar e volte devagar"],
+  "Tríceps unilateral": ["Um braço de cada vez", "Cotovelo fixo junto ao corpo"],
+
+  // ── Abdômen ──
+  "Abdominal supra": ["Suba só os ombros do chão", "Não puxe o pescoço com as mãos"],
+  "Abdominal infra": ["Leve os joelhos ao peito", "Tire a anca do chão no final"],
+  "Abdominal oblíquo": ["Cotovelo em direção ao joelho oposto", "Alterne os lados"],
+  "Prancha": ["Corpo reto dos ombros aos pés", "Contraia o abdómen e respire"],
+  "Prancha lateral": ["Apoio num antebraço", "Anca elevada e corpo alinhado"],
+  "Prancha com movimento": ["Alterne entre antebraços e mãos", "Anca estável, sem balançar"],
+  "Elevação de pernas": ["Pernas esticadas, suba até 90°", "Desça devagar sem tocar no chão"],
+  "Elevação de pernas na barra": ["Pendurado na barra", "Suba as pernas sem balançar"],
+  "Russian twist": ["Tronco inclinado atrás, pés elevados", "Rode de um lado ao outro"],
+  "Crunch na máquina": ["Enrole o tronco à frente", "Volte devagar"],
+  "Abdominal no cabo": ["Ajoelhado, corda junto à cabeça", "Enrole o tronco para baixo"],
+  "Mountain climber": ["Posição de prancha", "Joelhos ao peito alternando rápido"],
+  "Hollow body": ["Deitado, lombar colada ao chão", "Eleve ombros e pernas e segure"],
+
+  // ── Glúteos ──
+  "Elevação pélvica": ["Deitado, pés no chão", "Suba a anca apertando o glúteo"],
+  "Elevação pélvica com barra": ["Barra sobre a anca", "Suba até alinhar tronco e coxas"],
+  "Hip thrust": ["Costas apoiadas no banco", "Suba a anca e aperte o glúteo no topo"],
+  "Cadeira abdutora": ["Abra as pernas contra a resistência", "Volte devagar"],
+  "Coice na polia": ["Tornozelo preso ao cabo", "Empurre a perna para trás"],
+  "Kick back": ["De quatro apoios", "Empurre o calcanhar para cima e para trás"],
+  "Good morning": ["Barra nas costas, joelhos semiflexionados", "Incline o tronco com as costas retas"],
+  "Extensão de quadril no cabo": ["De costas para a polia, cabo entre as pernas", "Empurre a anca à frente apertando o glúteo"],
+  "Avanço": ["Passo para trás e desça", "Volte empurrando com a perna da frente"],
+
+  // ── Panturrilha ──
+  "Panturrilha em pé": ["Suba na ponta dos pés", "Pausa em cima, desça devagar"],
+  "Panturrilha sentado": ["Joelhos a 90°", "Amplitude completa — desça bem"],
+  "Panturrilha no leg press": ["Só a ponta dos pés na plataforma", "Empurre com os dedos"],
+  "Panturrilha unilateral": ["Uma perna de cada vez", "Suba o máximo que conseguir"],
+  "Panturrilha com halteres": ["Haltere em cada mão", "Suba na ponta dos pés e segure 1s"],
+
+  // ── Cardio ──
+  "Esteira": ["Comece a caminhar e aumente o ritmo", "Postura direita, olhar em frente"],
+  "Bike ergométrica": ["Ajuste o banco à altura da anca", "Ritmo constante"],
+  "Elíptico": ["Movimento contínuo e suave", "Use também os braços"],
+  "Escada": ["Postura direita", "Não se apoie demasiado nas mãos"],
+  "Remo ergométrico": ["Empurre primeiro com as pernas", "Depois puxe com os braços"],
+  "Corda náutica": ["Joelhos semiflexionados", "Ondule as cordas alternando os braços"],
+  "Burpee": ["Agache e apoie as mãos no chão", "Estique as pernas em prancha", "Volte e salte com os braços para cima"],
+  "Jump": ["Salte com força para cima do apoio", "Aterre suave, joelhos flexionados"],
+  "Polichinelo": ["Abra pernas e braços ao mesmo tempo", "Volte ao centro e repita em ritmo"],
+  "Corrida": ["Ritmo confortável para começar", "Aumente a distância aos poucos"],
+  "HIIT": ["Alterne esforço máximo com descanso curto", "Ex.: 30s forte + 30s leve"],
+  "Circuito": ["Vários exercícios em sequência", "Pouco descanso entre eles"],
 };
 
 function normalize(s: string): string {
@@ -294,11 +475,24 @@ function resolveId(name: string): string | null {
 
 /** Retorna os 2 quadros (início/fim) da demonstração, ou null se não houver. */
 export function getExerciseImages(name: string): [string, string] | null {
+  if (getExerciseSvgFrames(name)) return null;
   const id = resolveId(name);
   if (!id) return null;
   return [`${BASE}/${id}/0.jpg`, `${BASE}/${id}/1.jpg`];
 }
 
+/** Quadros SVG locais (para exercícios sem foto fiel no catálogo). */
+export function getExerciseSvgFrames(name: string): string[] | null {
+  return SVG_FRAMES[normalize(name)] ?? null;
+}
+
+const TIPS_LOOKUP = new Map(Object.entries(TIPS).map(([k, v]) => [normalize(k), v]));
+
+/** Dicas curtas de execução, ou null para exercícios personalizados. */
+export function getExerciseTips(name: string): string[] | null {
+  return TIPS_LOOKUP.get(normalize(name)) ?? null;
+}
+
 export function hasExerciseMedia(name: string): boolean {
-  return resolveId(name) !== null;
+  return getExerciseSvgFrames(name) !== null || resolveId(name) !== null;
 }
