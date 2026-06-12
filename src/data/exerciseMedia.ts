@@ -138,19 +138,167 @@ const MEDIA_IDS: Record<string, string> = {
   "Escada": "Stairmaster",
   "Remo ergométrico": "Rowing_Stationary",
   "Corda náutica": "Battling_Ropes",
-  "Jump": "Freehand_Jump_Squat",
+  "Burpee": "Freehand_Jump_Squat",
+  "Jump": "Bench_Jump",
   "Polichinelo": "Star_Jump",
   "Corrida": "Jogging_Treadmill",
   "Mountain Climber": "Mountain_Climbers",
+  "HIIT": "Fast_Skipping",
+  "Circuito": "Box_Jump_Multiple_Response",
 };
+
+// Apelidos genéricos para casar exercícios livres/personalizados digitados
+// pelo usuário (chaves já normalizadas: minúsculas e sem acento).
+const ALIASES: Record<string, string> = {
+  "supino": "Barbell_Bench_Press_-_Medium_Grip",
+  "supino maquina": "Machine_Bench_Press",
+  "supino smith": "Smith_Machine_Bench_Press",
+  "crucifixo": "Dumbbell_Flyes",
+  "voador": "Butterfly",
+  "crossover": "Cable_Crossover",
+  "flexao": "Pushups",
+  "agachamento": "Barbell_Squat",
+  "agachamento smith": "Smith_Machine_Squat",
+  "agachamento frontal": "Front_Barbell_Squat",
+  "pistol": "Kettlebell_Pistol_Squat",
+  "sissy": "Weighted_Sissy_Squat",
+  "desenvolvimento": "Dumbbell_Shoulder_Press",
+  "desenvolvimento militar": "Standing_Military_Press",
+  "militar": "Standing_Military_Press",
+  "rosca": "Barbell_Curl",
+  "rosca punho": "Seated_Palm-Up_Barbell_Wrist_Curl",
+  "antebraco": "Seated_Palm-Up_Barbell_Wrist_Curl",
+  "rosca spider": "Spider_Curl",
+  "rosca zottman": "Zottman_Curl",
+  "triceps": "Triceps_Pushdown",
+  "triceps banco": "Bench_Dips",
+  "mergulho": "Bench_Dips",
+  "remada": "Seated_Cable_Rows",
+  "puxada": "Wide-Grip_Lat_Pulldown",
+  "terra": "Barbell_Deadlift",
+  "terra sumo": "Sumo_Deadlift",
+  "terra romeno": "Romanian_Deadlift",
+  "abdominal": "Crunches",
+  "abdominal bicicleta": "Air_Bike",
+  "abdominal remador": "Jackknife_Sit-Up",
+  "panturrilha": "Standing_Calf_Raises",
+  "burro": "Donkey_Calf_Raises",
+  "gluteo": "Glute_Kickback",
+  "ponte": "Butt_Lift_Bridge",
+  "afundo": "Dumbbell_Lunges",
+  "avanco": "Barbell_Lunge",
+  "bulgaro": "Split_Squat_with_Dumbbells",
+  "cadeira adutora": "Thigh_Adductor",
+  "adutora": "Thigh_Adductor",
+  "abdutora": "Thigh_Abductor",
+  "lombar": "Hyperextensions_Back_Extensions",
+  "hiperextensao": "Hyperextensions_Back_Extensions",
+  "superman": "Superman",
+  "kettlebell": "One-Arm_Kettlebell_Swings",
+  "swing": "One-Arm_Kettlebell_Swings",
+  "clean": "Power_Clean",
+  "snatch": "Power_Snatch",
+  "arremesso": "Power_Clean",
+  "bicicleta": "Bicycling",
+  "bike": "Bicycling_Stationary",
+  "spinning": "Bicycling_Stationary",
+  "caminhada": "Walking_Treadmill",
+  "pular corda": "Rope_Jumping",
+  "corda de pular": "Rope_Jumping",
+  "remo": "Rowing_Stationary",
+  "abdominal canivete": "Jackknife_Sit-Up",
+  "sit up": "Sit-Up",
+};
+
+function normalize(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9 ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Índice normalizado (nomes do app + apelidos).
+const NORMALIZED_ENTRIES: { key: string; id: string }[] = [
+  ...Object.entries(MEDIA_IDS).map(([k, id]) => ({ key: normalize(k), id })),
+  ...Object.entries(ALIASES).map(([k, id]) => ({ key: k, id })),
+];
+
+const EXACT_LOOKUP = new Map(NORMALIZED_ENTRIES.map(({ key, id }) => [key, id]));
+
+// Frequência de cada palavra no índice: palavras raras ("sissy") são mais
+// específicas que genéricas ("agachamento") e vencem no desempate.
+const TOKEN_FREQ = new Map<string, number>();
+for (const { key } of NORMALIZED_ENTRIES) {
+  for (const t of key.split(" ")) {
+    TOKEN_FREQ.set(t, (TOKEN_FREQ.get(t) ?? 0) + 1);
+  }
+}
+
+function specificity(tokens: string[]): number {
+  return tokens.reduce((s, t) => s + 1 / (TOKEN_FREQ.get(t) ?? 1), 0);
+}
+
+/** Resolve o id da demonstração, com correspondência aproximada para nomes livres. */
+function resolveId(name: string): string | null {
+  const direct = MEDIA_IDS[name];
+  if (direct) return direct;
+
+  const q = normalize(name);
+  if (!q) return null;
+
+  const exact = EXACT_LOOKUP.get(q);
+  if (exact) return exact;
+
+  // O nome digitado contém uma entrada conhecida ("supino reto na barra",
+  // "agachamento sissy na máquina"): vence a entrada mais específica.
+  let best: string | null = null;
+  let bestScore = 0;
+  for (const { key, id } of NORMALIZED_ENTRIES) {
+    if (` ${q} `.includes(` ${key} `)) {
+      const score = specificity(key.split(" "));
+      // empate: a entrada mais ao fim do índice (apelidos curados) vence
+      if (score >= bestScore) {
+        best = id;
+        bestScore = score;
+      }
+    }
+  }
+  if (best) return best;
+
+  // O nome digitado é um pedaço de uma entrada conhecida ("crucifixo inv")
+  if (q.length >= 4) {
+    for (const { key, id } of NORMALIZED_ENTRIES) {
+      if (key.includes(q)) return id;
+    }
+  }
+
+  // Sobreposição de palavras: metade ou mais das palavras da entrada conhecida,
+  // desempate pela especificidade das palavras casadas.
+  const qTokens = new Set(q.split(" "));
+  for (const { key, id } of NORMALIZED_ENTRIES) {
+    const tokens = key.split(" ");
+    const matched = tokens.filter((t) => t.length > 2 && qTokens.has(t));
+    if (matched.length >= 1 && matched.length / tokens.length >= 0.5) {
+      const score = specificity(matched);
+      if (score > bestScore) {
+        best = id;
+        bestScore = score;
+      }
+    }
+  }
+  return best;
+}
 
 /** Retorna os 2 quadros (início/fim) da demonstração, ou null se não houver. */
 export function getExerciseImages(name: string): [string, string] | null {
-  const id = MEDIA_IDS[name];
+  const id = resolveId(name);
   if (!id) return null;
   return [`${BASE}/${id}/0.jpg`, `${BASE}/${id}/1.jpg`];
 }
 
 export function hasExerciseMedia(name: string): boolean {
-  return Boolean(MEDIA_IDS[name]);
+  return resolveId(name) !== null;
 }
