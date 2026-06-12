@@ -3,6 +3,8 @@
 // Cada exercício tem 2 quadros (posição inicial/final) que são alternados
 // para criar uma animação demonstrativa estilo GIF.
 
+import { EXERCISE_ANIMATIONS } from "./exerciseAnimations";
+
 const BASE = "https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises";
 
 // Nome do exercício (PT) → id no free-exercise-db
@@ -205,46 +207,6 @@ const ALIASES: Record<string, string> = {
   "remo": "Rowing_Stationary",
   "abdominal canivete": "Jackknife_Sit-Up",
   "sit up": "Sit-Up",
-};
-
-// ─────────────────────────────────────────────────────
-// Quadros SVG desenhados localmente para exercícios que
-// não têm foto fiel no catálogo (bonecos posição a posição).
-// Chaves normalizadas (minúsculas, sem acento).
-// ─────────────────────────────────────────────────────
-const fig = (body: string) =>
-  `<svg viewBox="0 0 200 190" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
-
-const GROUND = `<path d="M18 182 H182" stroke-width="4" opacity="0.18"/>`;
-const GROUND_LOW = `<path d="M18 176 H182" stroke-width="4" opacity="0.18"/>`;
-
-const STANDING = `${GROUND}<circle cx="100" cy="40" r="15"/><path d="M100 58 V120"/><path d="M100 74 L74 114"/><path d="M100 74 L126 114"/><path d="M100 120 L88 180"/><path d="M100 120 L112 180"/>`;
-
-const SVG_FRAMES: Record<string, string[]> = {
-  polichinelo: [
-    fig(STANDING),
-    fig(
-      `${GROUND}<circle cx="100" cy="34" r="15"/><path d="M100 52 V116"/><path d="M100 68 L64 30"/><path d="M100 68 L136 30"/><path d="M100 116 L68 180"/><path d="M100 116 L132 180"/>`
-    ),
-  ],
-  burpee: [
-    fig(STANDING),
-    fig(
-      `${GROUND}<circle cx="84" cy="96" r="14"/><path d="M92 106 L108 138"/><path d="M96 114 L88 180"/><path d="M108 138 L134 156 L130 180"/>`
-    ),
-    fig(
-      `${GROUND}<circle cx="156" cy="112" r="13"/><path d="M146 122 L48 164"/><path d="M140 126 L142 180"/><path d="M48 164 L40 180"/>`
-    ),
-    fig(
-      `${GROUND}<circle cx="100" cy="26" r="15"/><path d="M100 44 V100"/><path d="M100 58 L66 22"/><path d="M100 58 L134 22"/><path d="M100 100 L84 142"/><path d="M100 100 L116 142"/>`
-    ),
-  ],
-  "hollow body": [
-    fig(`${GROUND_LOW}<circle cx="40" cy="160" r="13"/><path d="M54 162 H172"/>`),
-    fig(
-      `${GROUND_LOW}<circle cx="48" cy="134" r="13"/><path d="M60 142 Q96 162 122 156"/><path d="M122 156 L170 130"/><path d="M60 142 L28 112"/>`
-    ),
-  ],
 };
 
 // ─────────────────────────────────────────────────────
@@ -475,15 +437,15 @@ function resolveId(name: string): string | null {
 
 /** Retorna os 2 quadros (início/fim) da demonstração, ou null se não houver. */
 export function getExerciseImages(name: string): [string, string] | null {
-  if (getExerciseSvgFrames(name)) return null;
+  if (getExerciseAnimation(name)) return null;
   const id = resolveId(name);
   if (!id) return null;
   return [`${BASE}/${id}/0.jpg`, `${BASE}/${id}/1.jpg`];
 }
 
-/** Quadros SVG locais (para exercícios sem foto fiel no catálogo). */
-export function getExerciseSvgFrames(name: string): string[] | null {
-  return SVG_FRAMES[normalize(name)] ?? null;
+/** Mini-animação SVG local (tem prioridade sobre as fotos). */
+export function getExerciseAnimation(name: string): string | null {
+  return EXERCISE_ANIMATIONS[normalize(name)] ?? null;
 }
 
 const TIPS_LOOKUP = new Map(Object.entries(TIPS).map(([k, v]) => [normalize(k), v]));
@@ -494,5 +456,5 @@ export function getExerciseTips(name: string): string[] | null {
 }
 
 export function hasExerciseMedia(name: string): boolean {
-  return getExerciseSvgFrames(name) !== null || resolveId(name) !== null;
+  return getExerciseAnimation(name) !== null || resolveId(name) !== null;
 }
