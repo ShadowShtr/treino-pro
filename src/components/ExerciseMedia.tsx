@@ -29,14 +29,14 @@ export function ExerciseAnim({ name, className = "" }: { name: string; className
       <img
         src={images[0]}
         alt={`Demonstração: ${name}`}
-        loading="lazy"
+        decoding="async"
         onError={() => setFailed(true)}
         style={{ opacity: frame === 0 ? 1 : 0 }}
       />
       <img
         src={images[1]}
         alt=""
-        loading="lazy"
+        decoding="async"
         onError={() => setFailed(true)}
         style={{ opacity: frame === 1 ? 1 : 0 }}
       />
